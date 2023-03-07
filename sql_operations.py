@@ -108,6 +108,28 @@ def get_sqlite_data_type(type_name: str) -> str:
         return "BLOB"
 
 
+def get_table_summary(rows: list) -> dict[dict]:
+    """
+    Get summary of each column in a table (list of rows).
+    Always gives type of variable and the number of unique values.
+    If the variable is numeric, includes minimum, maximum and median.
+    """
+    summary = dict()
+    reference_object = rows[0]
+    # Use class annotations to account for reference objects where some variables are not set.
+    for column_name, column_type in reference_object.__class__.__annotations__.items():
+        column_summary = dict()
+        values = [row.__getattribute__(column_name) for row in rows]
+        column_summary["type"] = column_type.__name__
+        column_summary["n_unique_values"] = len(set(values))
+        if column_type in (int, float):
+            column_summary["minimum"] = sorted(values)[0]
+            column_summary["maximum"] = sorted(values)[-1]
+            column_summary["median"] = (sorted(values)[len(values) // 2] + sorted(values)[~len(values) // 2]) / 2
+        summary[column_name] = column_summary
+    return summary
+
+
 ###########
 # Classes #
 ###########
@@ -159,7 +181,7 @@ class SqlIrisInterface(SqlTableInterface):
 
     def select_iris(self, where: str = "") -> list[Iris]:
         """
-        Returns sql data with items formatted to the Iris class.
+        Returns sql data with items formatted as the Iris class.
         """
         data_raw = self.select(where=where)
         data_iris = list()
@@ -169,14 +191,20 @@ class SqlIrisInterface(SqlTableInterface):
 
     def insert_unique(self, data: list[Iris]):
         """
-        Inserts Iris objects to sql only if it's not already present in the table.
-        Uses list input to avoid duplicative comparisons for every insertion.
+        Inserts Iris objects to sql only if it is not yet present in the table.
+        Uses list input to avoid redundant comparisons for every insertion.
         """
         existing_data = self.select_iris()
         # deduplicate input data and insert rows that are not yet present.
         for row in set(data):
             if row not in existing_data:
                 self.insert(**row.as_dict())
+
+    def summary(self) -> dict[dict]:
+        """
+        Return a nested dict with summary of data in the table.
+        """
+        return get_table_summary(self.select_iris())
 
 
 

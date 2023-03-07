@@ -39,4 +39,5 @@ sql_connection = sqlite3.connect(sql_path)
 sql_iris_table = SqlIrisInterface(connection=sql_connection)
 sql_iris_table.insert_unique(data=data)
 
+print(sql_iris_table.summary())
 
