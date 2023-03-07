@@ -2,7 +2,7 @@
 # standard
 import sqlite3
 # local
-from fetch import Iris
+from iris import Iris
 
 
 #############
@@ -148,7 +148,7 @@ class SqlIrisInterface(SqlTableInterface):
     name = "Iris"
     type_class = Iris
     columns = {key: get_sqlite_data_type(column_type.__name__)
-               for key, column_type in type_class.__annotations__}
+               for key, column_type in type_class.__annotations__.items()}
 
     def __init__(self, connection: sqlite3.Connection) -> None:
         SqlTableInterface.__init__(
@@ -157,11 +157,26 @@ class SqlIrisInterface(SqlTableInterface):
             columns=self.columns,
             connection=connection)
 
-    def select_iris(self):
-        pass
+    def select_iris(self, where: str = "") -> list[Iris]:
+        """
+        Returns sql data with items formatted to the Iris class.
+        """
+        data_raw = self.select(where=where)
+        data_iris = list()
+        for row in data_raw:
+            data_iris += [self.type_class(row)]
+        return data_iris
 
-    def insert_unique(self):
-        pass
+    def insert_unique(self, data: list[Iris]):
+        """
+        Inserts Iris objects to sql only if it's not already present in the table.
+        Uses list input to avoid duplicative comparisons for every insertion.
+        """
+        existing_data = self.select_iris()
+        # deduplicate input data and insert rows that are not yet present.
+        for row in set(data):
+            if row not in existing_data:
+                self.insert(**row.as_dict())
 
 
 
