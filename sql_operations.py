@@ -89,6 +89,29 @@ def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> None:
     return
 
 
+def get_table_summary(rows: list) -> dict[dict]:
+    """
+    Get summary of each column in a table (list of rows).
+    Always gives type of variable and the number of total values and unique values.
+    If the variable is numeric, includes minimum, maximum and median.
+    """
+    summary = dict()
+    reference_object = rows[0]
+    # Use class annotations to account for reference objects where some variables are not set.
+    for column_name, column_type in reference_object.__class__.__annotations__.items():
+        column_summary = dict()
+        values = [row.__getattribute__(column_name) for row in rows]
+        column_summary["type"] = column_type.__name__
+        column_summary["n_total_values"] = len([value for value in values if value is not None])
+        column_summary["n_unique_values"] = len(set(values))
+        if column_type in (int, float):
+            column_summary["minimum"] = sorted(values)[0]
+            column_summary["maximum"] = sorted(values)[-1]
+            column_summary["median"] = (sorted(values)[len(values) // 2] + sorted(values)[~len(values) // 2]) / 2
+        summary[column_name] = column_summary
+    return summary
+
+
 def get_sqlite_data_type(type_name: str) -> str:
     """
     Get SQLite data type by python type name.
@@ -106,28 +129,6 @@ def get_sqlite_data_type(type_name: str) -> str:
         return "NULL"
     else:
         return "BLOB"
-
-
-def get_table_summary(rows: list) -> dict[dict]:
-    """
-    Get summary of each column in a table (list of rows).
-    Always gives type of variable and the number of unique values.
-    If the variable is numeric, includes minimum, maximum and median.
-    """
-    summary = dict()
-    reference_object = rows[0]
-    # Use class annotations to account for reference objects where some variables are not set.
-    for column_name, column_type in reference_object.__class__.__annotations__.items():
-        column_summary = dict()
-        values = [row.__getattribute__(column_name) for row in rows]
-        column_summary["type"] = column_type.__name__
-        column_summary["n_unique_values"] = len(set(values))
-        if column_type in (int, float):
-            column_summary["minimum"] = sorted(values)[0]
-            column_summary["maximum"] = sorted(values)[-1]
-            column_summary["median"] = (sorted(values)[len(values) // 2] + sorted(values)[~len(values) // 2]) / 2
-        summary[column_name] = column_summary
-    return summary
 
 
 ###########
@@ -167,6 +168,7 @@ class SqlTableInterface:
 
 
 class SqlIrisInterface(SqlTableInterface):
+
     name = "Iris"
     type_class = Iris
     columns = {key: get_sqlite_data_type(column_type.__name__)
