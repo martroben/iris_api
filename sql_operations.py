@@ -31,7 +31,7 @@ def create_table(table: str, columns: dict, connection: sqlite3.Connection) -> N
     :param connection: SQL connection object.
     :return: None
     """
-    column_typenames = {column_name: get_sqlite_data_type(column_type.__name__)
+    column_typenames = {column_name: get_sqlite_data_type(column_type)
                         for column_name, column_type in columns.items()}
     columns_string = ",\n\t".join([f"{key} {value}" for key, value in column_typenames.items()])
     create_table_command = f"CREATE TABLE {table} (\n\t{columns_string}\n);"

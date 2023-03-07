@@ -10,7 +10,6 @@ from sql_operations import SqlIrisInterface
 from iris import Iris
 
 
-
 url = "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/" \
            "raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
 
@@ -39,3 +38,5 @@ if sql_path != ":memory:":
 sql_connection = sqlite3.connect(sql_path)
 sql_iris_table = SqlIrisInterface(connection=sql_connection)
 sql_iris_table.insert_unique(data=data)
+
+

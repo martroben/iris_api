@@ -1,4 +1,6 @@
 
+import json
+
 class Iris:
     """
     Data class for iris data.
@@ -20,7 +22,7 @@ class Iris:
         """
         Two instances of Iris are equal if they have the same columns and the valus of all columns are equal.
         """
-        if not isinstance(Iris, other):
+        if not isinstance(other, Iris):
             return False
         if len(self.__annotations__) != len(other.__annotations__):
             return False
@@ -32,3 +34,7 @@ class Iris:
 
     def as_dict(self):
         return {column: self.__getattribute__(column) for column in self.__annotations__}
+
+    def __hash__(self):
+        # Hash function to get unique instances by converting to set
+        return hash(json.dumps(self.as_dict(), sort_keys=True))
