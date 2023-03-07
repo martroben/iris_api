@@ -4,30 +4,37 @@ import json
 
 class Iris:
     """
-    Data class for iris data.
+    Iris data class.
     """
+    # Allowed attributes for class
+    # accessed by self.__class__.annotations__ in code
     sepal_length: float
     sepal_width: float
     petal_length: float
     petal_width: float
     species: str
 
-    def __init__(self, row):
-        self.sepal_length = float(row["sepal_length"])
-        self.sepal_width = float(row["sepal_width"])
-        self.petal_length = float(row["petal_length"])
-        self.petal_width = float(row["petal_width"])
-        self.species = str(row["species"])
+    def __init__(self, row: dict):
+        # Extract class attributes from input. If attribute not found, assign empty value with correct type.
+        allowed_attributes = self.__class__.__annotations__
+        for attribute, attribute_type in allowed_attributes.items():
+            self.__setattr__(attribute, row.pop(attribute, attribute_type()))
+        if len(row):
+            raise Warning(f"Trying to create an instance of {self.__class__.__name__} with forbidden attributes. "
+                          f"Ignored attributes: {', '.join(list(row.keys()))}. "
+                          f"Only the following attributes are allowed: "
+                          f"{', '.join(list(allowed_attributes.keys()))}")
 
     def __setattr__(self, key, value):
-        # Only allow variables defined in class variables.
-        allowed_variables = [column_name for column_name in self.__class__.__annotations__.keys()]
-        if key in allowed_variables:
-            super().__setattr__(key, value)
+        # Only allow attributes defined in class variables.
+        allowed_attributes = list(self.__class__.__annotations__.keys())
+        if key in allowed_attributes:
+            # Type the assigned value according to the type of attribute (float, int etc.)
+            super().__setattr__(key, self.__class__.__annotations__[key](value))
         else:
-            raise ValueError(f"Can't assign attribute {key} to class {self.__class__.__name__}. "
+            raise ValueError(f"Can't assign attribute '{key}' to class {self.__class__.__name__}. "
                              f"Only the following attributes are allowed: "
-                             f"{', '.join(allowed_variables)}")
+                             f"{', '.join(allowed_attributes)}")
 
     def __hash__(self):
         # Hash function to compare and get unique instances by converting to set
@@ -37,4 +44,6 @@ class Iris:
         return hash(self) == hash(other)
 
     def as_dict(self):
-        return {column: self.__getattribute__(column) for column in self.__annotations__}
+        # Return all class attributes and values as dict.
+        return {attribute: self.__getattribute__(attribute)
+                for attribute in self.__class__.__annotations__}
