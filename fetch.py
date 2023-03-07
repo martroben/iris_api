@@ -11,7 +11,9 @@ from iris import Iris
 
 
 url = "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/" \
-           "raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+      "raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+sql_path = ":memory:"
+sql_table_name = "Iris"
 
 # Download data
 response = requests.get(url)
@@ -23,11 +25,7 @@ if not response:
 data_raw = csv.DictReader(response.text.splitlines())
 data = list()
 for row in data_raw:
-    data += [Iris(row)]
-
-
-sql_path = ":memory:"
-sql_table_name = "Iris"
+    data += [Iris(**row)]
 
 # Create directories for database if they don't exist
 if sql_path != ":memory:":

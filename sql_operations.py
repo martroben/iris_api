@@ -188,7 +188,7 @@ class SqlIrisInterface(SqlTableInterface):
         data_raw = self.select(where=where)
         data_iris = list()
         for row in data_raw:
-            data_iris += [self.type_class(row)]
+            data_iris += [self.type_class(**row)]
         return data_iris
 
     def insert_unique(self, data: list[Iris]):
@@ -207,6 +207,3 @@ class SqlIrisInterface(SqlTableInterface):
         Return a nested dict with summary of data in the table.
         """
         return get_table_summary(self.select_iris())
-
-
-
