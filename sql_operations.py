@@ -1,31 +1,13 @@
 
+# standard
 import sqlite3
+# local
+from fetch import Iris
 
 
-class SqlTableInterface:
-    """
-    Interface class for SQL operations on a single table.
-    """
-    def __init__(self, name: str, columns: dict, connection: sqlite3.Connection):
-        self.name = name
-        self.columns = columns
-        self.connection = connection
-        self.setup()
-
-    def setup(self):
-        # Check if table exists and create if it doesn't.
-        if not table_exists(self.name, self.connection):
-            create_table(
-                table=self.name,
-                columns=self.columns,
-                connection=self.connection)
-
-    def insert(self, **kwargs) -> None:
-        insert_row(
-            table=self.name,
-            connection=self.connection,
-            **kwargs)
-
+#############
+# Functions #
+#############
 
 def table_exists(table: str, connection: sqlite3.Connection) -> bool:
     """
@@ -49,13 +31,36 @@ def create_table(table: str, columns: dict, connection: sqlite3.Connection) -> N
     :param connection: SQL connection object.
     :return: None
     """
-    column_typenames = {key: get_sqlite_data_type(value) for key, value in columns.items()}
+    column_typenames = {column_name: get_sqlite_data_type(column_type.__name__)
+                        for column_name, column_type in columns.items()}
     columns_string = ",\n\t".join([f"{key} {value}" for key, value in column_typenames.items()])
     create_table_command = f"CREATE TABLE {table} (\n\t{columns_string}\n);"
     sql_cursor = connection.cursor()
     sql_cursor.execute(create_table_command)
     connection.commit()
     return
+
+
+def read_table(table: str, connection: sqlite3.Connection, where: str = "") -> list[dict]:
+    """
+    Get data from a SQL table.
+    :param table: SQL table name.
+    :param connection: SQL connection.
+    :param where: Optional SQL WHERE filtering clause: e.g. "column = value" or "column IN (1,2,3)".
+    :return: A list of column_name:value dicts.
+    """
+    where_statement = f" WHERE {where}" if where else ""
+    get_data_command = f"SELECT * FROM {table}{where_statement};"
+    sql_cursor = connection.cursor()
+    response = sql_cursor.execute(get_data_command)
+    data = response.fetchall()
+    data_column_names = [item[0] for item in response.description]
+
+    data_rows = list()
+    for row in data:
+        data_row = {key: value for key, value in zip(data_column_names, row)}
+        data_rows += [data_row]
+    return data_rows
 
 
 def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> None:
@@ -84,13 +89,13 @@ def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> None:
     return
 
 
-def get_sqlite_data_type(python_type: type) -> str:
+def get_sqlite_data_type(type_name: str) -> str:
     """
     Get SQLite data type by python type name.
-    :param python_type: Class type object (from class __annotations__).
+    :param type_name: Class type object (from class __annotations__).
     :return: SQLite data type of that corresponds to Python class.
     """
-    type_name = python_type.__name__
+    type_name = type_name
     if type_name == "int":
         return "INTEGER"
     elif type_name == "float":
@@ -101,3 +106,62 @@ def get_sqlite_data_type(python_type: type) -> str:
         return "NULL"
     else:
         return "BLOB"
+
+
+###########
+# Classes #
+###########
+
+class SqlTableInterface:
+    """
+    Interface class for SQL operations on a single table.
+    """
+    def __init__(self, name: str, columns: dict, connection: sqlite3.Connection) -> None:
+        self.name = name
+        self.columns = columns
+        self.connection = connection
+        self.setup()
+
+    def setup(self):
+        # Check if table exists and create if it doesn't.
+        if not table_exists(self.name, self.connection):
+            create_table(
+                table=self.name,
+                columns=self.columns,
+                connection=self.connection)
+
+    def select(self, where: str = "") -> list[dict]:
+        result = read_table(
+            table=self.name,
+            connection=self.connection,
+            where=where)
+        return result
+
+    def insert(self, **kwargs) -> None:
+        insert_row(
+            table=self.name,
+            connection=self.connection,
+            **kwargs)
+
+
+class SqlIrisInterface(SqlTableInterface):
+    name = "Iris"
+    type_class = Iris
+    columns = {key: get_sqlite_data_type(column_type.__name__)
+               for key, column_type in type_class.__annotations__}
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        SqlTableInterface.__init__(
+            self,
+            name=self.name,
+            columns=self.columns,
+            connection=connection)
+
+    def select_iris(self):
+        pass
+
+    def insert_unique(self):
+        pass
+
+
+
