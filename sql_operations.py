@@ -17,9 +17,14 @@ def table_exists(table: str, connection: sqlite3.Connection) -> bool:
     :param connection: SQL connection object.
     :return: True/False whether the table exists
     """
-    check_table_query = f"SELECT EXISTS (SELECT name FROM sqlite_master WHERE type='table' AND name='{table}');"
     sql_cursor = connection.cursor()
-    query_result = sql_cursor.execute(check_table_query)
+    query_result = sql_cursor.execute(
+        """
+        SELECT EXISTS
+            (SELECT name FROM sqlite_master
+            WHERE type='table' AND name=':table');
+        """,
+        {"table": table})
     table_found = bool(query_result.fetchone()[0])
     return table_found
 
@@ -32,13 +37,17 @@ def create_table(table: str, columns: dict, connection: sqlite3.Connection) -> N
     :param connection: SQL connection object.
     :return: None
     """
+    sql_cursor = connection.cursor()
     column_typenames = {column_name: get_sqlite_data_type(column_type)
                         for column_name, column_type in columns.items()}
-    columns_string = ",\n\t".join([f"{key} {value}" for key, value in column_typenames.items()])
-    create_table_command = f"CREATE TABLE {table} (\n\t{columns_string}\n);"
-    sql_cursor = connection.cursor()
-    sql_cursor.execute(create_table_command)
-    print(sql_cursor.description, sql_cursor.arraysize, sql_cursor.rowcount, sql_cursor.lastrowid)
+    columns_string = ",".join([f"{key} {value}" for key, value in column_typenames.items()])
+    sql_cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS :table
+            :columns;
+        """,
+        {"table": table,
+         "columns": columns_string})
     connection.commit()
     return
 
@@ -51,10 +60,15 @@ def read_table(table: str, connection: sqlite3.Connection, where: str = "") -> l
     :param where: Optional SQL WHERE filtering clause: e.g. "column = value" or "column IN (1,2,3)".
     :return: A list of column_name:value dicts.
     """
-    where_statement = f" WHERE {where}" if where else ""
-    get_data_command = f"SELECT * FROM {table}{where_statement};"
     sql_cursor = connection.cursor()
-    response = sql_cursor.execute(get_data_command)
+    where_statement = f" WHERE {where}" if where else ""
+    response = sql_cursor.execute(
+        """
+        "SELECT * FROM :table
+            :where;"
+        """,
+        {"table": table,
+         "where": where_statement})
     data = response.fetchall()
     data_column_names = [item[0] for item in response.description]
 
@@ -65,14 +79,15 @@ def read_table(table: str, connection: sqlite3.Connection, where: str = "") -> l
     return data_rows
 
 
-def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> None:
+def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> int:
     """
     Inserts a Listing to SQL table.
     :param table: Name of SQL table where the data should be inserted to.
     :param connection: SQL connection object.
     :param kwargs: Key-value pairs to insert.
-    :return: None
+    :return: Number of rows inserted (1 or 0)
     """
+    sql_cursor = connection.cursor()
     column_names = list()
     values = list()
     for column_name, value in kwargs.items():
@@ -83,13 +98,19 @@ def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> None:
         values += [str(value)]
     column_names_string = ",".join(column_names)
     values_string = ",".join(values)
-    insert_data_command = f"INSERT INTO {table} ({column_names_string})\n" \
-                          f"VALUES\n\t({values_string});"
-    sql_cursor = connection.cursor()
-    sql_cursor.execute(insert_data_command)
-    # print(sql_cursor.description, sql_cursor.arraysize, sql_cursor.rowcount, sql_cursor.lastrowid)
+
+    sql_cursor.execute(
+        """
+        INSERT INTO :table
+            (:column_names)
+        VALUES
+            (:values);"
+        """,
+        {"table": table,
+         "column_names": column_names_string,
+         "values": values_string})
     connection.commit()
-    return
+    return sql_cursor.rowcount
 
 
 def get_table_summary(rows: list) -> dict[dict]:
@@ -156,15 +177,11 @@ class SqlTableInterface:
         self.name = name
         self.columns = columns
         self.connection = connection
-        self.setup()
 
-    def setup(self):
-        # Check if table exists and create if it doesn't.
-        if not table_exists(self.name, self.connection):
-            create_table(
-                table=self.name,
-                columns=self.columns,
-                connection=self.connection)
+        create_table(
+            table=self.name,
+            columns=self.columns,
+            connection=self.connection)
 
     def select(self, where: str = "") -> list[dict]:
         result = read_table(
@@ -173,11 +190,12 @@ class SqlTableInterface:
             where=where)
         return result
 
-    def insert(self, **kwargs) -> None:
-        insert_row(
+    def insert(self, **kwargs) -> int:
+        n_rows_inserted = insert_row(
             table=self.name,
             connection=self.connection,
             **kwargs)
+        return n_rows_inserted
 
 
 class SqlIrisInterface(SqlTableInterface):
@@ -195,9 +213,7 @@ class SqlIrisInterface(SqlTableInterface):
             connection=connection)
 
     def select_iris(self, where: str = "") -> list[Iris]:
-        """
-        Returns sql data with items formatted as the Iris class.
-        """
+        # Returns sql data with items formatted as the Iris class.
         data_raw = self.select(where=where)
         data_iris = list()
         for row in data_raw:
@@ -208,15 +224,16 @@ class SqlIrisInterface(SqlTableInterface):
         """
         Inserts Iris objects to sql only if it is not yet present in the table.
         Uses list input to avoid redundant comparisons for every insertion.
+        Returns total number of rows inserted.
         """
         existing_data = self.select_iris()
         # deduplicate input data and insert rows that are not yet present.
+        n_rows_inserted = 0
         for row in set(data):
             if row not in existing_data:
-                self.insert(**row.as_dict())
+                n_rows_inserted += self.insert(**row.as_dict())
+        return n_rows_inserted
 
     def summary(self) -> dict[dict]:
-        """
-        Return a nested dict with summary of data in the table.
-        """
+        # Return a nested dict with summary of data in the table.
         return get_table_summary(self.select_iris())
