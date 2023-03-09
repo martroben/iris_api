@@ -2,6 +2,7 @@
 import os
 import re
 import sqlite3
+import warnings
 # local
 from iris import Iris
 
@@ -60,8 +61,16 @@ def read_table(table: str, connection: sqlite3.Connection,
     :return: A list of column_name:value dicts.
     """
     sql_cursor = connection.cursor()
-    sql_statement = f"SELECT * FROM {table}"
+    where = [where] if not isinstance(where, list) else where   # Make sure where parameter is a list
+    where_parsed = list()
+    for statement in where:
+        if not all(statement):
+            warnings.warn(f"Values missing in sql where statement. Skipping. Statement: {statement}")
+            continue
+        where_parsed += {"statement": f"{statement[0]} {statement[1]} ?", "value": statement[2]}
     ####################### Parse multiple where statements and join by AND
+    sql_statement = f"SELECT * FROM {table}"
+
     if all(where):                      # Add where statement if it's included in input
         sql_statement.replace(";", f" WHERE {where[0]} {where[1]} :where;")
     response = sql_cursor.execute(sql_statement, {"where": where[2]})
