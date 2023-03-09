@@ -1,5 +1,6 @@
 # standard
 import os
+import re
 import sqlite3
 # local
 from iris import Iris
@@ -48,7 +49,8 @@ def create_table(table: str, columns: dict, connection: sqlite3.Connection) -> N
     return
 
 
-def read_table(table: str, connection: sqlite3.Connection, where: tuple[str, str, str] = ("", "", "")) -> list[dict]:
+def read_table(table: str, connection: sqlite3.Connection,
+               where: (tuple|list[tuple]) = ("", "", "")) -> list[dict]:
     """
     Get data from a SQL table.
     :param table: SQL table name.
@@ -59,7 +61,8 @@ def read_table(table: str, connection: sqlite3.Connection, where: tuple[str, str
     """
     sql_cursor = connection.cursor()
     sql_statement = f"SELECT * FROM {table}"
-    if all(where):  # Add where statement if it's included in input
+    ####################### Parse multiple where statements and join by AND
+    if all(where):                      # Add where statement if it's included in input
         sql_statement.replace(";", f" WHERE {where[0]} {where[1]} :where;")
     response = sql_cursor.execute(sql_statement, {"where": where[2]})
 
@@ -153,6 +156,36 @@ def get_connection(path: str) -> sqlite3.Connection:
     return connection
 
 
+def parse_where_statement(statement: str) -> tuple:
+    operators = ["=", "!=", "<", ">", r"\sin\s"]
+    operators_pattern = '|'.join(operators)
+    statement = statement.strip()
+
+    column_pattern = re.compile(rf"^.+?(?=({operators_pattern}))", re.IGNORECASE)
+    column_match = column_pattern.search(statement)
+    if column_match:
+        column = column_match.group(0).strip()
+    else:
+        raise ValueError(f"Couldn't parse column name from sql where statement! Statement: {statement}")
+
+    operator_pattern = re.compile(operators_pattern, re.IGNORECASE)
+    operator_match = operator_pattern.search(statement)
+    if operator_match:
+        operator_raw = operator_match.group(0)
+        operator = operator_raw.strip()
+    else:
+        raise ValueError(f"Couldn't parse operator from sql where statement! Statement: {statement}")
+
+    value_pattern = re.compile(rf"^.+?{operator_raw}(.+$)", re.IGNORECASE)
+    value_match = value_pattern.search(statement)
+    if value_match:
+        value = value_match.group(1).strip()
+    else:
+        raise ValueError(f"Couldn't parse search value from sql where statement! Statement: {statement}")
+
+    return column, operator, value
+
+
 ###########
 # Classes #
 ###########
@@ -172,7 +205,7 @@ class SqlTableInterface:
             columns=self.columns,
             connection=self.connection)
 
-    def select(self, where: tuple[str, str, str] = ("", "", "")) -> list[dict]:
+    def select(self, where: tuple = ("", "", "")) -> list[dict]:
         result = read_table(
             table=self.name,
             connection=self.connection,
@@ -200,7 +233,7 @@ class SqlIrisInterface(SqlTableInterface):
             columns=self.columns,
             connection=connection)
 
-    def select_iris(self, where: tuple[str, str, str] = ("", "", "")) -> list[Iris]:
+    def select_iris(self, where: tuple = ("", "", "")) -> list[Iris]:
         # Returns sql data with items formatted as the Iris class.
         data_raw = self.select(where=where)
         data_iris = list()
