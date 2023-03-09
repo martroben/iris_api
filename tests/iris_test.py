@@ -36,7 +36,7 @@ def test_full_initiation():
 
 
 def test_forbidden_initiation_warning():
-    with pytest.raises(Warning):
+    with pytest.warns(Warning):
         iris.Iris(
             sepal_length=111,
             sepal_width=222,
@@ -47,7 +47,7 @@ def test_forbidden_initiation_warning():
 
 
 def test_forbidden_initiation_ignore():
-    with pytest.raises(Warning):
+    with pytest.warns(Warning):
         full_iris = iris.Iris(
             sepal_length=111,
             sepal_width=222,

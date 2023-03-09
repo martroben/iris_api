@@ -2,6 +2,7 @@
 # standard
 import csv
 import json
+import warnings
 
 
 ###########
@@ -23,7 +24,7 @@ class Iris:
         for attribute, attribute_type in allowed_attributes.items():
             self.__setattr__(attribute, kwargs.pop(attribute, attribute_type()))
         if len(kwargs):
-            raise Warning(f"Forbidden attributes were not assigned to an instance of class {self.__class__.__name__}. "
+            warnings.warn(f"Forbidden attributes were not assigned to an instance of class {self.__class__.__name__}. "
                           f"Forbidden attributes: {', '.join(list(kwargs.keys()))}. "
                           f"Only the following attributes are allowed: "
                           f"{', '.join(list(allowed_attributes.keys()))}.")
