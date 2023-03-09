@@ -67,7 +67,7 @@ def read_table(table: str, connection: sqlite3.Connection,
         if not all(statement):
             warnings.warn(f"Values missing in sql where statement. Skipping. Statement: {statement}")
             continue
-        where_parsed += {"statement": f"{statement[0]} {statement[1]} ?", "value": statement[2]}
+        where_parsed += [{"statement": f"{statement[0]} {statement[1]} ?", "value": statement[2]}]
     ####################### Parse multiple where statements and join by AND
     sql_statement = f"SELECT * FROM {table}"
 
