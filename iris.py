@@ -1,6 +1,12 @@
 
+# standard
+import csv
 import json
 
+
+###########
+# Classes #
+###########
 
 class Iris:
     # Allowed attributes for class
@@ -44,3 +50,15 @@ class Iris:
         """Return all class attributes and values as dict."""
         return {attribute: self.__getattribute__(attribute)
                 for attribute in self.__class__.__annotations__}
+
+
+#############
+# Functions #
+#############
+
+def parse_data(csv_data: str) -> list[Iris]:
+    data_raw = csv.DictReader(csv_data.splitlines())
+    data = list()
+    for row in data_raw:
+        data += [Iris(**row)]
+    return data

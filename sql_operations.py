@@ -1,4 +1,3 @@
-
 # standard
 import os
 import sqlite3
@@ -19,12 +18,11 @@ def table_exists(table: str, connection: sqlite3.Connection) -> bool:
     """
     sql_cursor = connection.cursor()
     query_result = sql_cursor.execute(
-        """
+        f"""
         SELECT EXISTS
             (SELECT name FROM sqlite_master
-            WHERE type='table' AND name=':table');
-        """,
-        {"table": table})
+            WHERE type='table' AND name='{table}');
+        """)
     table_found = bool(query_result.fetchone()[0])
     return table_found
 
@@ -42,36 +40,31 @@ def create_table(table: str, columns: dict, connection: sqlite3.Connection) -> N
                         for column_name, column_type in columns.items()}
     columns_string = ",".join([f"{key} {value}" for key, value in column_typenames.items()])
     sql_cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS :table
-            :columns;
-        """,
-        {"table": table,
-         "columns": columns_string})
+        f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            {columns_string})
+        """)
     connection.commit()
     return
 
 
-def read_table(table: str, connection: sqlite3.Connection, where: str = "") -> list[dict]:
+def read_table(table: str, connection: sqlite3.Connection, where: tuple[str, str, str] = ("", "", "")) -> list[dict]:
     """
     Get data from a SQL table.
     :param table: SQL table name.
     :param connection: SQL connection.
-    :param where: Optional SQL WHERE filtering clause: e.g. "column = value" or "column IN (1,2,3)".
+    :param where: Optional SQL WHERE filtering clause: e.g. column = value or column IN (1,2,3).
+    Input has to be a 3-tuple: (column_name, operator, value). E.g. ("year", "in", "(1985, 1986)")
     :return: A list of column_name:value dicts.
     """
     sql_cursor = connection.cursor()
-    where_statement = f" WHERE {where}" if where else ""
-    response = sql_cursor.execute(
-        """
-        "SELECT * FROM :table
-            :where;"
-        """,
-        {"table": table,
-         "where": where_statement})
+    sql_statement = f"SELECT * FROM {table}"
+    if all(where):  # Add where statement if it's included in input
+        sql_statement.replace(";", f" WHERE {where[0]} {where[1]} :where;")
+    response = sql_cursor.execute(sql_statement, {"where": where[2]})
+
     data = response.fetchall()
     data_column_names = [item[0] for item in response.description]
-
     data_rows = list()
     for row in data:
         data_row = {key: value for key, value in zip(data_column_names, row)}
@@ -89,26 +82,21 @@ def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> int:
     """
     sql_cursor = connection.cursor()
     column_names = list()
-    values = list()
+    values = tuple()
     for column_name, value in kwargs.items():
         column_names += [column_name]
-        if isinstance(value, str):
-            value = value.replace("'", "''")            # Change single quotes to double single quotes
-            value = f"'{value}'"                        # Add quotes to string variables
-        values += [str(value)]
+        values += (value,)
     column_names_string = ",".join(column_names)
-    values_string = ",".join(values)
+    placeholder_string = ", ".join(["?"] * len(column_names))  # As many placeholders as columns. E.g (?, ?, ?, ?)
 
     sql_cursor.execute(
-        """
-        INSERT INTO :table
-            (:column_names)
+        f"""
+        INSERT INTO {table}
+            ({column_names_string})
         VALUES
-            (:values);"
+            ({placeholder_string});
         """,
-        {"table": table,
-         "column_names": column_names_string,
-         "values": values_string})
+        values)
     connection.commit()
     return sql_cursor.rowcount
 
@@ -173,6 +161,7 @@ class SqlTableInterface:
     """
     Interface class for SQL operations on a single table.
     """
+
     def __init__(self, name: str, columns: dict, connection: sqlite3.Connection) -> None:
         self.name = name
         self.columns = columns
@@ -183,7 +172,7 @@ class SqlTableInterface:
             columns=self.columns,
             connection=self.connection)
 
-    def select(self, where: str = "") -> list[dict]:
+    def select(self, where: tuple[str, str, str] = ("", "", "")) -> list[dict]:
         result = read_table(
             table=self.name,
             connection=self.connection,
@@ -199,7 +188,6 @@ class SqlTableInterface:
 
 
 class SqlIrisInterface(SqlTableInterface):
-
     name = "Iris"
     type_class = Iris
     columns = {key: get_sqlite_data_type(column_type.__name__)
@@ -212,7 +200,7 @@ class SqlIrisInterface(SqlTableInterface):
             columns=self.columns,
             connection=connection)
 
-    def select_iris(self, where: str = "") -> list[Iris]:
+    def select_iris(self, where: tuple[str, str, str] = ("", "", "")) -> list[Iris]:
         # Returns sql data with items formatted as the Iris class.
         data_raw = self.select(where=where)
         data_iris = list()
