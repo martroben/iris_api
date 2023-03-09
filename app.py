@@ -1,8 +1,18 @@
 
+# standard
+import os
+# external
 import flask
 from flask import request, jsonify
+# local
+import fetch
+import iris
+import sql_operations
+
+
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
+os.environ["SQL_PATH"] = ":memory:"
 
 
 @app.route('/', methods=['GET'])
@@ -30,9 +40,24 @@ def delete_iris():
 def sync_iris():
     payload = request.get_json()
     iris_data_url = payload["url"]
+    iris_sql_path = os.getenv("SQL_PATH")
+    iris_data_csv = fetch.download_url_data(iris_data_url)
+    iris_data = iris.parse_data(iris_data_csv)
+    sql_connection = sql_operations.get_connection(iris_sql_path)
+    sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
+    sql_iris_table.insert_unique(data=iris_data)
+    return sql_iris_table.summary()
 
 
-    return "Deduplicate and sync iris data to storage from input url"
+# local test
+iris_data_url = "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+iris_sql_path = ":memory:"
+iris_data_csv = fetch.download_url_data(iris_data_url)
+iris_data = iris.parse_data(iris_data_csv)
+sql_connection = sql_operations.get_connection(iris_sql_path)
+sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
+sql_iris_table.insert_unique(data=iris_data)
+sql_iris_table.summary()
 
 
 @app.route('/api/v1/iris/summary', methods=['Get'])
@@ -42,4 +67,3 @@ def summarize_iris():
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=7000)
-

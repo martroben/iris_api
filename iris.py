@@ -1,6 +1,12 @@
 
+# standard
+import csv
 import json
 
+
+###########
+# Classes #
+###########
 
 class Iris:
     """
@@ -14,14 +20,14 @@ class Iris:
     petal_width: float
     species: str
 
-    def __init__(self, row: dict):
+    def __init__(self, **kwargs):
         # Extract class attributes from input. If attribute not found, assign empty value with correct type.
         allowed_attributes = self.__class__.__annotations__
         for attribute, attribute_type in allowed_attributes.items():
-            self.__setattr__(attribute, row.pop(attribute, attribute_type()))
-        if len(row):
+            self.__setattr__(attribute, kwargs.pop(attribute, attribute_type()))
+        if len(kwargs):
             raise Warning(f"Trying to create an instance of {self.__class__.__name__} with forbidden attributes. "
-                          f"Ignored attributes: {', '.join(list(row.keys()))}. "
+                          f"Ignored attributes: {', '.join(list(kwargs.keys()))}. "
                           f"Only the following attributes are allowed: "
                           f"{', '.join(list(allowed_attributes.keys()))}")
 
@@ -47,3 +53,15 @@ class Iris:
         # Return all class attributes and values as dict.
         return {attribute: self.__getattribute__(attribute)
                 for attribute in self.__class__.__annotations__}
+
+
+#############
+# Functions #
+#############
+
+def parse_data(csv_data: str) -> list[Iris]:
+    data_raw = csv.DictReader(csv_data.splitlines())
+    data = list()
+    for row in data_raw:
+        data += [Iris(**row)]
+    return data

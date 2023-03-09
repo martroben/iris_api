@@ -1,5 +1,6 @@
 
 # standard
+import os
 import sqlite3
 # local
 from iris import Iris
@@ -37,6 +38,7 @@ def create_table(table: str, columns: dict, connection: sqlite3.Connection) -> N
     create_table_command = f"CREATE TABLE {table} (\n\t{columns_string}\n);"
     sql_cursor = connection.cursor()
     sql_cursor.execute(create_table_command)
+    print(sql_cursor.description, sql_cursor.arraysize, sql_cursor.rowcount, sql_cursor.lastrowid)
     connection.commit()
     return
 
@@ -85,6 +87,7 @@ def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> None:
                           f"VALUES\n\t({values_string});"
     sql_cursor = connection.cursor()
     sql_cursor.execute(insert_data_command)
+    # print(sql_cursor.description, sql_cursor.arraysize, sql_cursor.rowcount, sql_cursor.lastrowid)
     connection.commit()
     return
 
@@ -129,6 +132,16 @@ def get_sqlite_data_type(type_name: str) -> str:
         return "NULL"
     else:
         return "BLOB"
+
+
+def get_connection(path: str) -> sqlite3.Connection:
+    # Create directories for database if they don't exist
+    if path != ":memory:":
+        if not os.path.exists(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
+
+    connection = sqlite3.connect(path)
+    return connection
 
 
 ###########
@@ -188,7 +201,7 @@ class SqlIrisInterface(SqlTableInterface):
         data_raw = self.select(where=where)
         data_iris = list()
         for row in data_raw:
-            data_iris += [self.type_class(row)]
+            data_iris += [self.type_class(**row)]
         return data_iris
 
     def insert_unique(self, data: list[Iris]):
@@ -207,6 +220,3 @@ class SqlIrisInterface(SqlTableInterface):
         Return a nested dict with summary of data in the table.
         """
         return get_table_summary(self.select_iris())
-
-
-
