@@ -50,37 +50,61 @@ def create_table(table: str, columns: dict, connection: sqlite3.Connection) -> N
     return
 
 
-def read_table(table: str, connection: sqlite3.Connection,
-               where: (tuple|list[tuple]) = ("", "", "")) -> list[dict]:
+def select_query(table: str, connection: sqlite3.Connection,
+                 where: (tuple | list[tuple]) = None) -> sqlite3.Cursor:
     """
     Get data from a SQL table.
     :param table: SQL table name.
     :param connection: SQL connection.
     :param where: Optional SQL WHERE filtering clause: e.g. column = value or column IN (1,2,3).
     Input has to be a 3-tuple: (column_name, operator, value). E.g. ("year", "in", "(1985, 1986)")
-    :return: A list of column_name:value dicts.
+    :return: A sqlite3 Cursor object with query results.
     """
     sql_cursor = connection.cursor()
-    where = [where] if not isinstance(where, list) else where   # Make sure where parameter is a list
-    where_parsed = list()
-    for statement in where:
-        if not all(statement):
-            warnings.warn(f"Values missing in sql where statement. Skipping. Statement: {statement}")
-            continue
-        where_parsed += [{"statement": f"{statement[0]} {statement[1]} ?", "value": statement[2]}]
-    ####################### Parse multiple where statements and join by AND
-    sql_statement = f"SELECT * FROM {table}"
 
-    if all(where):                      # Add where statement if it's included in input
-        sql_statement.replace(";", f" WHERE {where[0]} {where[1]} :where;")
-    response = sql_cursor.execute(sql_statement, {"where": where[2]})
+    # Parse where statements
+    statements = list()
+    values = list()
+    if where:
+        print(where)
+        where = [where] if not isinstance(where, list) else where       # Make sure variable is a list
+        for statement in where:
+            if not all(statement):
+                warnings.warn(f"Missing values in sql where statement. Skipping statement: {statement}")
+                continue
+            statements += [f"{statement[0]} {statement[1]} ?"]
+            values += [statement[2]]
 
+    # Compose query string
+    sql_statement = f"SELECT * FROM {table};"
+    if statements:
+        sql_statement.replace(";", f" WHERE {' AND '.join(statements)};")
+
+    response = sql_cursor.execute(sql_statement, values)
+    return response
+
+
+def read_table(table: str, connection: sqlite3.Connection, where: (tuple | list[tuple]) = None,
+               return_empty: bool = False) -> list[dict]:
+    """
+    Formats sql select query response to a list of dicts {column_name: value}.
+    Allows returning column names with empty values for empty tables.
+    """
+    response = select_query(
+        table=table,
+        connection=connection,
+        where=where)
     data = response.fetchall()
+
+    # Format the response as a list of dicts
     data_column_names = [item[0] for item in response.description]
     data_rows = list()
     for row in data:
         data_row = {key: value for key, value in zip(data_column_names, row)}
         data_rows += [data_row]
+
+    if not data_rows and return_empty:
+        return [{key: str() for key in data_column_names}]
     return data_rows
 
 
@@ -119,9 +143,11 @@ def get_table_summary(rows: list) -> dict[dict]:
     Always gives type of variable and the number of total values and unique values.
     If the variable is numeric, includes minimum, maximum and median.
     """
-    summary = dict()
+    if not rows:
+        return dict()
     reference_object = rows[0]
     # Use class annotations to account for reference objects where some variables are not set.
+    summary = dict()
     for column_name, column_type in reference_object.__class__.__annotations__.items():
         column_summary = dict()
         values = [row.__getattribute__(column_name) for row in rows]
@@ -214,11 +240,12 @@ class SqlTableInterface:
             columns=self.columns,
             connection=self.connection)
 
-    def select(self, where: tuple = ("", "", "")) -> list[dict]:
+    def select(self, where: (tuple | list[tuple]) = None, return_empty: bool = False) -> list[dict]:
         result = read_table(
             table=self.name,
             connection=self.connection,
-            where=where)
+            where=where,
+            return_empty=return_empty)
         return result
 
     def insert(self, **kwargs) -> int:
@@ -242,9 +269,13 @@ class SqlIrisInterface(SqlTableInterface):
             columns=self.columns,
             connection=connection)
 
-    def select_iris(self, where: tuple = ("", "", "")) -> list[Iris]:
+    def select_iris(self, where: (tuple | list[tuple]) = None, return_empty: bool = False) -> list[Iris]:
         # Returns sql data with items formatted as the Iris class.
-        data_raw = self.select(where=where)
+        data_raw = read_table(
+            table=self.name,
+            connection=self.connection,
+            where=where,
+            return_empty=return_empty)
         data_iris = list()
         for row in data_raw:
             data_iris += [self.type_class(**row)]
@@ -266,4 +297,6 @@ class SqlIrisInterface(SqlTableInterface):
 
     def summary(self) -> dict[dict]:
         # Return a nested dict with summary of data in the table.
-        return get_table_summary(self.select_iris())
+        all_data = self.select_iris(return_empty=True)
+        summary = get_table_summary(all_data)
+        return summary

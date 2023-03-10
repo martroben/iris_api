@@ -33,8 +33,9 @@ class Iris:
         """Only allow attributes defined in class variables."""
         allowed_attributes = self.__class__.__annotations__
         if key in allowed_attributes:
-            # Type the assigned value according to the type of attribute (float, int etc.)
-            super().__setattr__(key, allowed_attributes[key](value))
+            # Typecast the assigned value according to the type of attribute (float, int etc.)
+            typed_value = allowed_attributes[key](value) if value else allowed_attributes[key]()
+            super().__setattr__(key, typed_value)
         else:
             raise ValueError(f"Can't assign attribute '{key}' to class {self.__class__.__name__}. "
                              f"Only the following attributes are allowed: "

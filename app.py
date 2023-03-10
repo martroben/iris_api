@@ -10,7 +10,7 @@ import sql_operations
 
 
 app = flask.Flask(__name__)
-app.config["DEBUG"] = True
+# app.config["DEBUG"] = True
 os.environ["SQL_PATH"] = ":memory:"
 
 
@@ -35,7 +35,9 @@ def get_iris():
     """
     # Get several arguments with the same name:
     arguments = flask.request.args.to_dict(flat=False)
+    print(arguments)
     param = flask.request.args.getlist('param')
+    print(param)
     return "Get iris data in json format"
 
 
