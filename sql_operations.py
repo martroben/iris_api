@@ -146,18 +146,24 @@ def get_table_summary(rows: list) -> dict[dict]:
     if not rows:
         return dict()
     reference_object = rows[0]
+    instance_variables = vars(reference_object)
     # Use class annotations to account for reference objects where some variables are not set.
+    class_annotations = list(reference_object.__class__.__annotations__.items())
+    # Handle tables with only column names and empty values
+    null_table = len(rows) == 1 and not any([bool(value) for value in instance_variables.values()])
+
     summary = dict()
-    for column_name, column_type in reference_object.__class__.__annotations__.items():
+    for column_name, column_type in class_annotations:
         column_summary = dict()
-        values = [row.__getattribute__(column_name) for row in rows]
         column_summary["type"] = column_type.__name__
-        column_summary["n_total_values"] = len([value for value in values if value is not None])
-        column_summary["n_unique_values"] = len(set(values))
-        if column_type in (int, float):
-            column_summary["minimum"] = sorted(values)[0]
-            column_summary["maximum"] = sorted(values)[-1]
-            column_summary["median"] = (sorted(values)[len(values) // 2] + sorted(values)[~len(values) // 2]) / 2
+        if not null_table:
+            values = [getattr(row, column_name) for row in rows]
+            column_summary["n_total_values"] = len([value for value in values if value is not None])
+            column_summary["n_unique_values"] = len(set(values))
+            if column_type in (int, float):
+                column_summary["minimum"] = sorted(values)[0]
+                column_summary["maximum"] = sorted(values)[-1]
+                column_summary["median"] = (sorted(values)[len(values) // 2] + sorted(values)[~len(values) // 2]) / 2
         summary[column_name] = column_summary
     return summary
 
