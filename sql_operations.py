@@ -2,7 +2,6 @@
 import os
 import re
 import sqlite3
-import warnings
 # local
 from iris import Iris
 
@@ -48,6 +47,35 @@ def create_table(table: str, columns: dict, connection: sqlite3.Connection) -> N
         """)
     connection.commit()
     return
+
+
+def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> int:
+    """
+    Inserts a Listing to SQL table.
+    :param table: Name of SQL table where the data should be inserted to.
+    :param connection: SQL connection object.
+    :param kwargs: Key-value pairs to insert.
+    :return: Number of rows inserted (1 or 0)
+    """
+    sql_cursor = connection.cursor()
+    column_names = list()
+    values = tuple()
+    for column_name, value in kwargs.items():
+        column_names += [column_name]
+        values += (value,)
+    column_names_string = ",".join(column_names)
+    placeholder_string = ", ".join(["?"] * len(column_names))  # As many placeholders as columns. E.g (?, ?, ?, ?)
+
+    sql_cursor.execute(
+        f"""
+        INSERT INTO {table}
+            ({column_names_string})
+        VALUES
+            ({placeholder_string});
+        """,
+        values)
+    connection.commit()
+    return sql_cursor.rowcount
 
 
 def parse_where_parameter(statement: str) -> tuple:
@@ -103,21 +131,19 @@ def typecast_input_value(value: str):
 def compile_where_statement(parsed_inputs: list[tuple]) -> tuple[str, list]:
     statement_strings = [f"{statement[0]} {statement[1]} ?" for statement in parsed_inputs]
     values = [typecast_input_value(statement[2]) for statement in parsed_inputs]
-    where_string = f" WHERE {' AND '.join(statement_strings)};"
+    where_string = f" WHERE {' AND '.join(statement_strings)}"
     return where_string, values
 
 
 def read_table(table: str, connection: sqlite3.Connection, where: tuple = None) -> list[dict]:
     """
-    Formats sql select query response to a list of dicts {column_name: value}.
-    Allows returning column names with empty values for empty tables.
     """
     sql_cursor = connection.cursor()
     # Add where statement values, if given
     sql_statement = f"SELECT * FROM {table};"
     where_values = tuple()
     if where:
-        sql_statement = sql_statement.replace(";", where[0])
+        sql_statement = sql_statement.replace(";", f"{where[0]};")
         where_values = where[1]
     # Execute query
     response = sql_cursor.execute(sql_statement, where_values)
@@ -131,41 +157,40 @@ def read_table(table: str, connection: sqlite3.Connection, where: tuple = None) 
     return data_rows
 
 
+def delete_rows(table: str, connection: sqlite3.Connection, where: tuple = 0) -> int:
+    """
+    """
+    sql_cursor = connection.cursor()
+    if isinstance(where, tuple) and len(where) > 1:     # Use parsed where statement if provided
+        sql_statement = f"DELETE FROM {table} {where[0]};"
+        where_values = where[1]
+    elif where:                                         # If where = True, delete all
+        sql_statement = f"DELETE FROM {table};"
+        where_values = tuple()
+    else:                                               # Default input 0: no action
+        sql_statement = f"DELETE FROM {table} WHERE 0;"
+        where_values = tuple()
+    # Execute query
+    response = sql_cursor.execute(sql_statement, where_values)
+    n_deleted_rows = response.rowcount
+    connection.commit()
+    return n_deleted_rows
+    # data = response.fetchall()
+    # # Format the response as a list of dicts
+    # data_column_names = [item[0] for item in response.description]
+    # data_rows = list()
+    # for row in data:
+    #     data_row = {key: value for key, value in zip(data_column_names, row)}
+    #     data_rows += [data_row]
+    # return data_rows
+
+
 def get_columns(table: str, connection: sqlite3.Connection) -> list:
     sql_cursor = connection.cursor()
     sql_statement = f"SELECT * FROM {table} WHERE 0;"
     response = sql_cursor.execute(sql_statement)
     column_names = [item[0] for item in response.description]
     return column_names
-
-
-def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> int:
-    """
-    Inserts a Listing to SQL table.
-    :param table: Name of SQL table where the data should be inserted to.
-    :param connection: SQL connection object.
-    :param kwargs: Key-value pairs to insert.
-    :return: Number of rows inserted (1 or 0)
-    """
-    sql_cursor = connection.cursor()
-    column_names = list()
-    values = tuple()
-    for column_name, value in kwargs.items():
-        column_names += [column_name]
-        values += (value,)
-    column_names_string = ",".join(column_names)
-    placeholder_string = ", ".join(["?"] * len(column_names))  # As many placeholders as columns. E.g (?, ?, ?, ?)
-
-    sql_cursor.execute(
-        f"""
-        INSERT INTO {table}
-            ({column_names_string})
-        VALUES
-            ({placeholder_string});
-        """,
-        values)
-    connection.commit()
-    return sql_cursor.rowcount
 
 
 def get_table_summary(rows: list) -> dict[dict]:
@@ -247,6 +272,13 @@ class SqlTableInterface:
             columns=self.columns,
             connection=self.connection)
 
+    def insert(self, **kwargs) -> int:
+        n_rows_inserted = insert_row(
+            table=self.name,
+            connection=self.connection,
+            **kwargs)
+        return n_rows_inserted
+
     def select(self, where: (str | list[str]) = None) -> list[dict]:
         # Parse where inputs
         if where:
@@ -261,12 +293,19 @@ class SqlTableInterface:
             where=where)
         return result
 
-    def insert(self, **kwargs) -> int:
-        n_rows_inserted = insert_row(
+    def delete(self, where: (str | list[str]) = 0):
+        # Parse where inputs
+        if where:
+            where = [where] if not isinstance(where, list) else where  # Make sure where variable is a list
+            where_parsed = [parse_where_parameter(parameter) for parameter in where]
+            where_statement, where_values = compile_where_statement(where_parsed)
+            where = (where_statement, where_values)
+
+        result = delete_rows(
             table=self.name,
             connection=self.connection,
-            **kwargs)
-        return n_rows_inserted
+            where=where)
+        return result
 
 
 class SqlIrisInterface(SqlTableInterface):
