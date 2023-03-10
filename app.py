@@ -11,7 +11,7 @@ import sql_operations
 
 app = flask.Flask(__name__)
 # app.config["DEBUG"] = True
-os.environ["SQL_PATH"] = ":memory:"
+os.environ["SQL_PATH"] = "./sql_test"
 
 
 @app.route('/', methods=['GET'])
@@ -33,12 +33,15 @@ def get_iris():
     Limited set of operators: =, !=, <, >, IN
     :return:
     """
-    # Get several arguments with the same name:
-    arguments = flask.request.args.to_dict(flat=False)
-    print(arguments)
-    param = flask.request.args.getlist('param')
-    print(param)
-    return "Get iris data in json format"
+    arguments = flask.request.args.to_dict(flat=False)          # Can parse several arguments with same name
+    where = [sql_operations.parse_where_statement(statement) for statement in arguments.get("where", list())]
+    print(where)
+
+    iris_sql_path = os.getenv("SQL_PATH")
+    sql_connection = sql_operations.get_connection(iris_sql_path)
+    sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
+    data = [row.as_dict() for row in sql_iris_table.select_iris(where=where)]
+    return flask.jsonify(data)
 
 
 @app.route('/api/v1/iris', methods=['Post'])
@@ -69,6 +72,7 @@ def sync_iris():
     sql_connection = sql_operations.get_connection(iris_sql_path)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     n_rows_inserted = sql_iris_table.insert_unique(data=iris_data)
+    print(sql_iris_table.summary())
     return f"{n_rows_inserted} rows inserted."
 
 
