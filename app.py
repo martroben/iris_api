@@ -1,5 +1,6 @@
 
 # standard
+import logging
 import os
 # external
 import flask
@@ -33,15 +34,21 @@ def get_iris():
     Limited set of operators: =, !=, <, >, IN
     :return:
     """
-    arguments = flask.request.args.to_dict(flat=False)          # Can parse several arguments with same name
-    where = [sql_operations.parse_where_statement(statement) for statement in arguments.get("where", list())]
-    print(where)
+    arguments = flask.request.args.to_dict(flat=False)        # Can parse several arguments with same name
+    where = arguments.get("where", None)
 
     iris_sql_path = os.getenv("SQL_PATH")
     sql_connection = sql_operations.get_connection(iris_sql_path)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
-    data = [row.as_dict() for row in sql_iris_table.select_iris(where=where)]
-    return flask.jsonify(data)
+    try:
+        data = [row.as_dict() for row in sql_iris_table.select_iris(where=where)]
+        return flask.jsonify(data)
+    except ValueError as value_error:
+        error_string = f"Couldn't read values from sql. " \
+                       f"{value_error.__class__.__name__} occurred: " \
+                       f"{value_error}"
+        logging.error(error_string)
+        return flask.make_response(error_string, 400)
 
 
 @app.route('/api/v1/iris', methods=['Post'])
@@ -81,7 +88,7 @@ def summarize_iris():
     iris_sql_path = os.getenv("SQL_PATH")
     sql_connection = sql_operations.get_connection(iris_sql_path)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
-    json_summary = sql_iris_table.summary()
+    json_summary = flask.jsonify(sql_iris_table.summary())
     return json_summary
 
 

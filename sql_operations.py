@@ -50,62 +50,93 @@ def create_table(table: str, columns: dict, connection: sqlite3.Connection) -> N
     return
 
 
-def select_query(table: str, connection: sqlite3.Connection,
-                 where: (tuple | list[tuple]) = None) -> sqlite3.Cursor:
+def parse_where_parameter(statement: str) -> tuple:
+    operators = ["=", "!=", "<", ">", r"\sin\s"]
+    operators_pattern = '|'.join(operators)
+    statement = statement.strip()
+
+    column_pattern = re.compile(rf"^.+?(?=({operators_pattern}))", re.IGNORECASE)
+    column_match = column_pattern.search(statement)
+    if column_match:
+        column = column_match.group(0).strip()
+    else:
+        raise ValueError(f"Can't parse the column name from the where statement. "
+                         f"Problematic statement: '{statement}'")
+
+    operator_pattern = re.compile(operators_pattern, re.IGNORECASE)
+    operator_match = operator_pattern.search(statement)
+    if operator_match:
+        operator_raw = operator_match.group(0)
+        operator = operator_raw.strip()
+    else:
+        raise ValueError(f"Can't parse the operator part from the where statement. "
+                         f"Problematic statement: '{statement}'")
+
+    value_pattern = re.compile(rf"^.+?{operator_raw}(.+$)", re.IGNORECASE)
+    value_match = value_pattern.search(statement)
+    if value_match:
+        value = value_match.group(1).strip()
+    else:
+        raise ValueError(f"Can't parse a searchable value from the where statement. "
+                         f"Problematic statement: '{statement}'")
+
+    return column, operator, value
+
+
+def typecast_input_value(value: str):
     """
-    Get data from a SQL table.
-    :param table: SQL table name.
-    :param connection: SQL connection.
-    :param where: Optional SQL WHERE filtering clause: e.g. column = value or column IN (1,2,3).
-    Input has to be a 3-tuple: (column_name, operator, value). E.g. ("year", "in", "(1985, 1986)")
-    :return: A sqlite3 Cursor object with query results.
+    Typecast where string input value from string to a more proper type
+    :param value:
+    :return:
     """
-    sql_cursor = connection.cursor()
-
-    # Parse where statements
-    statements = list()
-    values = list()
-    if where:
-        print(where)
-        where = [where] if not isinstance(where, list) else where       # Make sure variable is a list
-        for statement in where:
-            if not all(statement):
-                warnings.warn(f"Missing values in sql where statement. Skipping statement: {statement}")
-                continue
-            statements += [f"{statement[0]} {statement[1]} ?"]
-            values += [statement[2]]
-
-    # Compose query string
-    sql_statement = f"SELECT * FROM {table};"
-    if statements:
-        sql_statement.replace(";", f" WHERE {' AND '.join(statements)};")
-
-    response = sql_cursor.execute(sql_statement, values)
-    return response
+    # Convert to float if no error
+    try:
+        value = float(value)
+    except ValueError:
+        pass
+    # Convert to int, if value doesn't change upon conversion
+    if isinstance(value, float) and value == int(value):
+        value = int(value)
+    return value
 
 
-def read_table(table: str, connection: sqlite3.Connection, where: (tuple | list[tuple]) = None,
-               return_empty: bool = False) -> list[dict]:
+def compile_where_statement(parsed_inputs: list[tuple]) -> tuple[str, list]:
+    statement_strings = [f"{statement[0]} {statement[1]} ?" for statement in parsed_inputs]
+    values = [typecast_input_value(statement[2]) for statement in parsed_inputs]
+    where_string = f" WHERE {' AND '.join(statement_strings)};"
+    return where_string, values
+
+
+def read_table(table: str, connection: sqlite3.Connection, where: tuple = None) -> list[dict]:
     """
     Formats sql select query response to a list of dicts {column_name: value}.
     Allows returning column names with empty values for empty tables.
     """
-    response = select_query(
-        table=table,
-        connection=connection,
-        where=where)
+    sql_cursor = connection.cursor()
+    # Add where statement values, if given
+    sql_statement = f"SELECT * FROM {table};"
+    where_values = tuple()
+    if where:
+        sql_statement = sql_statement.replace(";", where[0])
+        where_values = where[1]
+    # Execute query
+    response = sql_cursor.execute(sql_statement, where_values)
     data = response.fetchall()
-
     # Format the response as a list of dicts
     data_column_names = [item[0] for item in response.description]
     data_rows = list()
     for row in data:
         data_row = {key: value for key, value in zip(data_column_names, row)}
         data_rows += [data_row]
-
-    if not data_rows and return_empty:
-        return [{key: str() for key in data_column_names}]
     return data_rows
+
+
+def get_columns(table: str, connection: sqlite3.Connection) -> list:
+    sql_cursor = connection.cursor()
+    sql_statement = f"SELECT * FROM {table} WHERE 0;"
+    response = sql_cursor.execute(sql_statement)
+    column_names = [item[0] for item in response.description]
+    return column_names
 
 
 def insert_row(table: str, connection: sqlite3.Connection, **kwargs) -> int:
@@ -147,7 +178,7 @@ def get_table_summary(rows: list) -> dict[dict]:
         return dict()
     reference_object = rows[0]
     instance_variables = vars(reference_object)
-    # Use class annotations to account for reference objects where some variables are not set.
+    # Use class annotations to handle reference objects where some variables are not set.
     class_annotations = list(reference_object.__class__.__annotations__.items())
     # Handle tables with only column names and empty values
     null_table = len(rows) == 1 and not any([bool(value) for value in instance_variables.values()])
@@ -197,36 +228,6 @@ def get_connection(path: str) -> sqlite3.Connection:
     return connection
 
 
-def parse_where_statement(statement: str) -> tuple:
-    operators = ["=", "!=", "<", ">", r"\sin\s"]
-    operators_pattern = '|'.join(operators)
-    statement = statement.strip()
-
-    column_pattern = re.compile(rf"^.+?(?=({operators_pattern}))", re.IGNORECASE)
-    column_match = column_pattern.search(statement)
-    if column_match:
-        column = column_match.group(0).strip()
-    else:
-        raise ValueError(f"Couldn't parse column name from sql where statement! Statement: {statement}")
-
-    operator_pattern = re.compile(operators_pattern, re.IGNORECASE)
-    operator_match = operator_pattern.search(statement)
-    if operator_match:
-        operator_raw = operator_match.group(0)
-        operator = operator_raw.strip()
-    else:
-        raise ValueError(f"Couldn't parse operator from sql where statement! Statement: {statement}")
-
-    value_pattern = re.compile(rf"^.+?{operator_raw}(.+$)", re.IGNORECASE)
-    value_match = value_pattern.search(statement)
-    if value_match:
-        value = value_match.group(1).strip()
-    else:
-        raise ValueError(f"Couldn't parse search value from sql where statement! Statement: {statement}")
-
-    return column, operator, value
-
-
 ###########
 # Classes #
 ###########
@@ -246,12 +247,18 @@ class SqlTableInterface:
             columns=self.columns,
             connection=self.connection)
 
-    def select(self, where: (tuple | list[tuple]) = None, return_empty: bool = False) -> list[dict]:
+    def select(self, where: (str | list[str]) = None) -> list[dict]:
+        # Parse where inputs
+        if where:
+            where = [where] if not isinstance(where, list) else where  # Make sure where variable is a list
+            where_parsed = [parse_where_parameter(parameter) for parameter in where]
+            where_statement, where_values = compile_where_statement(where_parsed)
+            where = (where_statement, where_values)
+
         result = read_table(
             table=self.name,
             connection=self.connection,
-            where=where,
-            return_empty=return_empty)
+            where=where)
         return result
 
     def insert(self, **kwargs) -> int:
@@ -275,13 +282,14 @@ class SqlIrisInterface(SqlTableInterface):
             columns=self.columns,
             connection=connection)
 
-    def select_iris(self, where: (tuple | list[tuple]) = None, return_empty: bool = False) -> list[Iris]:
-        # Returns sql data with items formatted as the Iris class.
-        data_raw = read_table(
-            table=self.name,
-            connection=self.connection,
-            where=where,
-            return_empty=return_empty)
+    def select_iris(self, where: (str | list[str]) = None) -> list[Iris]:
+        """
+        Get sql data with items formatted to the Iris class.
+        :param where:
+        :return:
+        """
+        data_raw = self.select(where=where)
+        # Typecast data to class Iris
         data_iris = list()
         for row in data_raw:
             data_iris += [self.type_class(**row)]
@@ -303,6 +311,11 @@ class SqlIrisInterface(SqlTableInterface):
 
     def summary(self) -> dict[dict]:
         # Return a nested dict with summary of data in the table.
-        all_data = self.select_iris(return_empty=True)
-        summary = get_table_summary(all_data)
+        data = self.select_iris()
+        if not data:                                                       # Handle cases where table has no content
+            columns = get_columns(
+                table=self.name,
+                connection=self.connection)
+            data = [self.type_class(**{column: str() for column in columns})]     # Include variable type info
+        summary = get_table_summary(data)
         return summary
