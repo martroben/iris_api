@@ -24,8 +24,8 @@ class Iris:
         for attribute, attribute_type in allowed_attributes.items():
             self.__setattr__(attribute, kwargs.pop(attribute, attribute_type()))
         if len(kwargs):
-            warnings.warn(f"Forbidden attributes were not assigned to an instance of class {self.__class__.__name__}. "
-                          f"Forbidden attributes: {', '.join(list(kwargs.keys()))}. "
+            warnings.warn(f"Can't assign forbidden attributes to class {self.__class__.__name__}. "
+                          f"Problematic attributes: {', '.join(list(kwargs.keys()))}. "
                           f"Only the following attributes are allowed: "
                           f"{', '.join(list(allowed_attributes.keys()))}.")
 
@@ -37,9 +37,10 @@ class Iris:
             typed_value = allowed_attributes[key](value) if value else allowed_attributes[key]()
             super().__setattr__(key, typed_value)
         else:
-            raise ValueError(f"Can't assign attribute '{key}' to class {self.__class__.__name__}. "
+            raise ValueError(f"Can't assign forbidden attributes to class {self.__class__.__name__}. "
+                             f"Problematic attributes: {key}. "
                              f"Only the following attributes are allowed: "
-                             f"{', '.join(allowed_attributes)}")
+                             f"{', '.join(list(allowed_attributes.keys()))}.")
 
     def __hash__(self):
         """Hash function to compare and get unique instances by converting to set"""
@@ -58,9 +59,14 @@ class Iris:
 # Functions #
 #############
 
-def parse_data(csv_data: str) -> list[Iris]:
-    data_raw = csv.DictReader(csv_data.splitlines())
+def from_csv(data: str) -> list[Iris]:
+    data_raw = csv.DictReader(data.splitlines())
     data = list()
     for row in data_raw:
         data += [Iris(**row)]
     return data
+
+
+def from_json(data: str) -> list[Iris]:
+    return [Iris(**row) for row in json.loads(data)]
+

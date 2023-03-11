@@ -97,17 +97,19 @@ def sync_iris():
     """
     :return:
     """
+    # Parse post payload
     payload = flask.request.get_json()
     default_iris_data_url = os.getenv("DEFAULT_IRIS_DATA_URL")
     iris_data_url = payload.get("url", default_iris_data_url)
-    iris_sql_path = os.getenv("SQL_PATH")
+    # Download data
     iris_data_csv = fetch.download_url_data(iris_data_url)
-    iris_data = iris.parse_data(iris_data_csv)
+    iris_data = iris.from_csv(iris_data_csv)
+    # Insert to sql
+    iris_sql_path = os.getenv("SQL_PATH")
     sql_connection = sql_operations.get_connection(iris_sql_path)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     n_rows_inserted = sql_iris_table.insert_unique(data=iris_data)
-    print(sql_iris_table.summary())
-    return f"{n_rows_inserted} rows inserted."
+    return f"Inserted {n_rows_inserted} rows."
 
 
 @app.route('/api/v1/iris/summary', methods=['Get'])
