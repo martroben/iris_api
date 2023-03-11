@@ -1,5 +1,5 @@
 
-# standard
+# external
 import requests
 
 

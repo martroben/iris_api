@@ -2,6 +2,7 @@
 # standard
 import logging
 import os
+from requests.exceptions import MissingSchema, ConnectionError
 import sqlite3
 # external
 import flask
@@ -11,12 +12,12 @@ import iris
 import sql_operations
 
 
-os.environ["SQL_PATH"] = "./iris.sql"
-os.environ["DEFAULT_IRIS_DATA_URL"] = "https://gist.githubusercontent.com/curran/" \
-                                      "a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
-os.environ["LOG_LEVEL"] = "DEBUG"
-os.environ["LOG_NAME"] = "iris"
-
+# os.environ["SQL_PATH"] = "./iris.sql"
+# os.environ["DEFAULT_IRIS_DATA_URL"] = "https://gist.githubusercontent.com/curran/" \
+#                                       "a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+# os.environ["LOG_LEVEL"] = "DEBUG"
+# os.environ["LOG_NAME"] = "iris"
+# os.environ["API_PORT"] = 7000
 
 ###############
 # Set logging #
@@ -70,7 +71,6 @@ def home():
     <p>Multiple 'where' statements are joined by AND</p>
     <p>Column names can't contain operators (except 'in' without surrounding whitespaces)</p>
     <p>Values can't contain commas.</p>
-    </br>
     <p>Examples:</p>
     <p>GET /iris?where=petal_length=5.5</p>
     <p>GET /iris?where=petal_width<1</p>
@@ -126,13 +126,14 @@ def parse_post_data(request: flask.request) -> list[iris.Iris]:
 
 @app.route('/api/v1/iris', methods=['Post'])
 @app.route('/api/v1/iris/unique', methods=['Post'])
-def post_iris():
+def post_iris(iris_data: list[iris.Iris] = None, unique: bool = False):
     """
     Inserts csv or json data to storage, depending on Content-Type header
     :return: String with number of inserted rows.
     """
-    unique = "iris/unique" in str(flask.request.url_rule).lower()    # Determine if the /unique endpoint is used
-    iris_data = parse_post_data(flask.request)
+    if not iris_data:                                                    # Case when endpoint request is used
+        unique = "iris/unique" in str(flask.request.url_rule).lower()    # Determine if the /unique endpoint is used
+        iris_data = parse_post_data(flask.request)
     iris_sql_path = os.getenv("SQL_PATH", "./iris.sql")
     sql_connection = sql_operations.get_connection(iris_sql_path)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
@@ -177,13 +178,17 @@ def sync_iris():
     """
     # Parse url if given
     iris_data_url = flask.request.args.get("url", os.getenv("DEFAULT_IRIS_DATA_URL"))
-    print(iris_data_url)
     # Download data
-    iris_data_csv = general.download_url_data(iris_data_url)
-    iris_data = iris.from_csv(iris_data_csv)
-    # Insert to sql
-    n_rows_inserted = post_iris(iris_data, unique=True)
-    return f"Inserted {n_rows_inserted} rows."
+    try:
+        iris_data_csv = general.download_url_data(iris_data_url)
+        iris_data = iris.from_csv(iris_data_csv)
+        # Insert to sql
+        result_string = post_iris(iris_data, unique=True)
+        return result_string
+    except (MissingSchema, ConnectionError) as bad_url_error:
+        error_string = "Error on downloading Iris data."
+        logger.error(f"{error_string} Url: {iris_data_url}. Error: {bad_url_error}")
+        return flask.make_response(error_string, 500)
 
 
 @app.route('/api/v1/iris/summary', methods=['Get'])
@@ -204,6 +209,6 @@ if __name__ == '__main__':
 
     app.run(
         host="0.0.0.0",
-        port=7000,
+        port=os.getenv("API_PORT", 7000),
         use_reloader=False        # Necessary to function properly on Ubuntu
     )
