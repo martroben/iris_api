@@ -158,6 +158,7 @@ def compile_where_statement(parsed_inputs: list[tuple]) -> tuple[str, list]:
 
 def read_table(table: str, connection: sqlite3.Connection, where: tuple = None) -> list[dict]:
     """
+    If no where argument is supplied, returns all data.
     """
     sql_cursor = connection.cursor()
     # Add where statement values, if given
