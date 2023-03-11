@@ -1,6 +1,5 @@
 
-import json
-import pytest
+# local
 import iris
 
 null_iris = iris.Iris()
@@ -106,9 +105,9 @@ def test_forbidden_initiation_ignore():
     assert len(forbidden_iris.__annotations__) == 5
 
 
-def test_forbidden_assignment():
-    with pytest.raises(ValueError):
-        null_iris.forbidden_attribute = 111
+def test_forbidden_assignment_warning(caplog):
+    null_iris.forbidden_attribute = 111
+    assert "forbidden" in caplog.text
 
 
 def test_dict_representation():
@@ -164,7 +163,7 @@ def test_load_from_csv_partial():
 
 
 def test_load_from_csv_forbidden(caplog):
-    iris_list = iris.from_csv(forbidden_iris_csv)
+    iris.from_csv(forbidden_iris_csv)
     assert "forbidden" in caplog.text
 
 

@@ -34,15 +34,19 @@ class Iris:
     def __setattr__(self, key, value):
         """Only allow attributes defined in class variables."""
         allowed_attributes = self.__class__.__annotations__
+        problem_keys = list()
         if key in allowed_attributes:
             # Typecast the assigned value according to the type of attribute (float, int etc.)
             typed_value = allowed_attributes[key](value) if value else allowed_attributes[key]()
             super().__setattr__(key, typed_value)
         else:
-            raise ValueError(f"Can't assign forbidden attributes to class {self.__class__.__name__}. "
-                             f"Problematic attributes: {key}. "
-                             f"Only the following attributes are allowed: "
-                             f"{', '.join(list(allowed_attributes.keys()))}.")
+            problem_keys += [key]
+        if len(problem_keys):
+            warning_string = f"Can't assign forbidden attributes to class {self.__class__.__name__}. "\
+                             f"Problematic attributes: {', '.join(problem_keys)}. "\
+                             f"Only the following attributes are allowed: "\
+                             f"{', '.join(list(allowed_attributes.keys()))}."
+            logging.getLogger(os.getenv("LOG_NAME")).warning(warning_string)
 
     def __hash__(self):
         """Hash function to compare and get unique instances by converting to set"""
