@@ -1,3 +1,4 @@
+
 # standard
 import os
 import re
@@ -128,9 +129,29 @@ def typecast_input_value(value: str):
     return value
 
 
+def parse_in_values(value: str) -> list:
+    """
+    Parses arguments for sql "IN" statement.
+    E.g. '("virginica","setosa")' -> ['virginica', 'setosa']
+    :param value: Values for sql "IN" statement
+    :return: A list of parsed parameters
+    """
+    return [string.strip(r"'\"()") for string in value.split(",")]
+
+
 def compile_where_statement(parsed_inputs: list[tuple]) -> tuple[str, list]:
-    statement_strings = [f"{statement[0]} {statement[1]} ?" for statement in parsed_inputs]
-    values = [typecast_input_value(statement[2]) for statement in parsed_inputs]
+    statement_strings = list()
+    values = list()
+    for statement in parsed_inputs:
+        print(statement)
+        if statement[1].lower() == "in":
+            in_values = [typecast_input_value(value) for value in parse_in_values(statement[2])]
+            placeholders = ','.join(['?'] * len(in_values))          # String in the form ?,?,?,...
+            statement_strings += [f"{statement[0]} {statement[1]} ({placeholders})"]
+            values += in_values
+        else:
+            statement_strings += [f"{statement[0]} {statement[1]} ?"]
+            values += [typecast_input_value(statement[2])]
     where_string = f" WHERE {' AND '.join(statement_strings)}"
     return where_string, values
 
@@ -175,14 +196,6 @@ def delete_rows(table: str, connection: sqlite3.Connection, where: tuple = 0) ->
     n_deleted_rows = response.rowcount
     connection.commit()
     return n_deleted_rows
-    # data = response.fetchall()
-    # # Format the response as a list of dicts
-    # data_column_names = [item[0] for item in response.description]
-    # data_rows = list()
-    # for row in data:
-    #     data_row = {key: value for key, value in zip(data_column_names, row)}
-    #     data_rows += [data_row]
-    # return data_rows
 
 
 def get_columns(table: str, connection: sqlite3.Connection) -> list:
