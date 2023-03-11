@@ -44,7 +44,23 @@ forbidden_iris_dict = {
     "species": "Iris species name",
     "forbidden_attribute": 555}
 
-full_iris_csv = "sepal_length,sepal_width,petal_length,petal_width,species\n111,222,333,444,Iris species name\n1111,2222,3333,4444,Iris species name2"
+full_iris_csv = """\
+sepal_length,sepal_width,petal_length,petal_width,species
+111,222,333,444,Iris species name
+1111,2222,3333,4444,Iris species name2\
+"""
+
+partial_iris_csv = """\
+sepal_length,petal_length,species
+111,333,Iris species name
+1111,3333,Iris species name2\
+"""
+
+forbidden_iris_csv = """\
+sepal_length,sepal_width,petal_length,petal_width,species,forbidden_column
+111,222,333,444,Iris species name,Forbidden value1
+1111,2222,3333,4444,Iris species name2,Forbidden value2\
+"""
 
 
 def test_null_initiation():
@@ -115,13 +131,44 @@ def test_equality():
 
 def test_load_from_csv():
     iris_list = iris.from_csv(full_iris_csv)
-    iris1 = iris_list[0]
-    iris2 = iris_list[1]
-    assert iris1.as_dict()["sepal_length"] == 111
-    assert iris1.as_dict()["sepal_width"] == 222
-    assert iris1.as_dict()["petal_length"] == 333
-    assert iris1.as_dict()["petal_width"] == 444
-    assert iris1.as_dict()["species"] == "Iris species name"
+    iris1_reference = {
+        "sepal_length": 111,
+        "sepal_width": 222,
+        "petal_length": 333,
+        "petal_width": 444,
+        "species": "Iris species name"}
+    iris2_reference = {
+        "sepal_length": 1111,
+        "sepal_width": 2222,
+        "petal_length": 3333,
+        "petal_width": 4444,
+        "species": "Iris species name2"}
+    assert iris_list[0].as_dict() == iris1_reference
+    assert iris_list[1].as_dict() == iris2_reference
+
+
+def test_load_from_csv_partial():
+    iris_list = iris.from_csv(partial_iris_csv)
+    iris1_reference = {
+        "sepal_length": 111,
+        "sepal_width": float(),
+        "petal_length": 333,
+        "petal_width": float(),
+        "species": "Iris species name"}
+    iris2_reference = {
+        "sepal_length": 1111,
+        "sepal_width": float(),
+        "petal_length": 3333,
+        "petal_width": float(),
+        "species": "Iris species name2"}
+    assert iris_list[0].as_dict() == iris1_reference
+    assert iris_list[1].as_dict() == iris2_reference
+
+
+def test_load_from_csv_forbidden():
+    with pytest.warns(Warning):
+        iris_list = iris.from_csv(forbidden_iris_csv)
+        assert len(iris_list) == 2
 
 
 def test_load_from_json():

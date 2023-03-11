@@ -27,6 +27,7 @@ def home():
 
 
 @app.route('/api/v1/iris', methods=['GET'])
+@app.route('/api/v1/iris/all', methods=['GET'])
 def get_iris():
     """
     Limited filtering capabilities with where parameter:
@@ -38,7 +39,8 @@ def get_iris():
     :return:
     """
     arguments = flask.request.args.to_dict(flat=False)        # Can parse several arguments with same name
-    where = arguments.get("where", None)
+    get_all = "iris/all" in str(flask.request.url_rule)       # Determine if the /all endpoint is used
+    where = None if get_all else arguments.get("where", None)
 
     iris_sql_path = os.getenv("SQL_PATH")
     sql_connection = sql_operations.get_connection(iris_sql_path)
@@ -54,9 +56,32 @@ def get_iris():
         return flask.make_response(error_string, 400)
 
 
+def parse_post_data(request: flask.request) -> list[iris.Iris]:
+    content_type = request.headers.get("Content-Type")
+    if content_type.lower == "text/csv":
+        payload = request.get_data()
+        iris_data = iris.from_csv(payload)
+    else:
+        payload = request.get_json()
+        payload = [payload] if not isinstance(payload, list) else payload  # Accept both list and single rows
+        iris_data = iris.from_json(payload)
+    return iris_data
+
+
 @app.route('/api/v1/iris', methods=['Post'])
-def post_iris():
-    return "Post iris data in json or csv format"
+def post_iris(iris_data: list[iris.Iris] = None, unique: bool = False):
+    if not iris_data:                                     # Accept both endpoint requests and calling function manually
+        iris_data = parse_post_data(flask.request)
+    iris_sql_path = os.getenv("SQL_PATH")
+    sql_connection = sql_operations.get_connection(iris_sql_path)
+    sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
+    n_rows_inserted = sql_iris_table.insert_iris(data=iris_data, unique=unique)
+    return f"Inserted {n_rows_inserted} rows."
+
+
+@app.route('/api/v1/iris/unique', methods=['Post'])
+def post_iris_unique():
+    return post_iris(iris_data=parse_post_data(flask.request), unique=True)
 
 
 @app.route('/api/v1/iris', methods=['Delete'])
@@ -92,23 +117,19 @@ def delete_iris_all():
     return delete_iris(where="1=1")                 # Run delete with a where statement that is always true
 
 
-@app.route('/api/v1/iris/sync', methods=['Post'])
+@app.route('/api/v1/iris/sync', methods=['Get'])
 def sync_iris():
     """
     :return:
     """
-    # Parse post payload
-    payload = flask.request.get_json()
-    default_iris_data_url = os.getenv("DEFAULT_IRIS_DATA_URL")
-    iris_data_url = payload.get("url", default_iris_data_url)
+    # Parse url if given
+    iris_data_url = flask.request.args.get("url",os.getenv("DEFAULT_IRIS_DATA_URL"))
+    print(iris_data_url)
     # Download data
     iris_data_csv = fetch.download_url_data(iris_data_url)
     iris_data = iris.from_csv(iris_data_csv)
     # Insert to sql
-    iris_sql_path = os.getenv("SQL_PATH")
-    sql_connection = sql_operations.get_connection(iris_sql_path)
-    sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
-    n_rows_inserted = sql_iris_table.insert_unique(data=iris_data)
+    n_rows_inserted = post_iris(iris_data, unique=True)
     return f"Inserted {n_rows_inserted} rows."
 
 

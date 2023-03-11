@@ -334,17 +334,21 @@ class SqlIrisInterface(SqlTableInterface):
             data_iris += [self.type_class(**row)]
         return data_iris
 
-    def insert_unique(self, data: list[Iris]):
+    def insert_iris(self, data: list[Iris], unique: bool = False):
         """
         Inserts Iris objects to sql only if it is not yet present in the table.
         Uses list input to avoid redundant comparisons for every insertion.
         Returns total number of rows inserted.
         """
-        existing_data = self.select_iris()
-        # deduplicate input data and insert rows that are not yet present.
         n_rows_inserted = 0
-        for row in set(data):
-            if row not in existing_data:
+        if unique:
+            existing_data = self.select_iris()
+            # deduplicate input data and insert rows that are not yet present.
+            for row in set(data):
+                if row not in existing_data:
+                    n_rows_inserted += self.insert(**row.as_dict())
+        else:
+            for row in data:
                 n_rows_inserted += self.insert(**row.as_dict())
         return n_rows_inserted
 

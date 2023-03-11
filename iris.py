@@ -67,6 +67,6 @@ def from_csv(data: str) -> list[Iris]:
     return data
 
 
-def from_json(data: str) -> list[Iris]:
-    return [Iris(**row) for row in json.loads(data)]
+def from_json(data: list) -> list[Iris]:
+    return [Iris(**row) for row in data]
 
