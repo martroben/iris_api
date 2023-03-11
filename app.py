@@ -98,12 +98,11 @@ def get_iris():
         sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
         data = [row.as_dict() for row in sql_iris_table.select_iris(where=where)]
         return flask.jsonify(data)
-    except (ValueError, sqlite3.Error) as sql_error:
-        error_string = f"Couldn't read data from sql. " \
-                       f"{sql_error.__class__.__name__} occurred: " \
-                       f"{sql_error}"
-        logger.error(error_string)
-        return flask.make_response(error_string, 400)
+    except sqlite3.Error as database_error:
+        error_string = f"Error on opening database connection: " \
+                       f"{database_error.__class__.__name__} occurred."
+        logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
+        return flask.make_response(error_string, 500)
 
 
 def parse_post_data(request: flask.request) -> list[iris.Iris]:
@@ -135,7 +134,13 @@ def post_iris(iris_data: list[iris.Iris] = None, unique: bool = False):
         unique = "iris/unique" in str(flask.request.url_rule).lower()    # Determine if the /unique endpoint is used
         iris_data = parse_post_data(flask.request)
     iris_sql_path = os.getenv("SQL_PATH", "./iris.sql")
-    sql_connection = sql_operations.get_connection(iris_sql_path)
+    try:
+        sql_connection = sql_operations.get_connection(iris_sql_path)
+    except sqlite3.Error as database_error:
+        error_string = f"Error on opening database connection: " \
+                       f"{database_error.__class__.__name__} occurred."
+        logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
+        return flask.make_response(error_string, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     n_rows_inserted = sql_iris_table.insert_iris(data=iris_data, unique=unique)
     return f"Inserted {n_rows_inserted} rows."
@@ -156,7 +161,13 @@ def delete_iris():
     where = "1=1" if delete_all else arguments.get("where", "1=0")
 
     iris_sql_path = os.getenv("SQL_PATH", "./iris.sql")
-    sql_connection = sql_operations.get_connection(iris_sql_path)
+    try:
+        sql_connection = sql_operations.get_connection(iris_sql_path)
+    except sqlite3.Error as database_error:
+        error_string = f"Error on opening database connection: " \
+                       f"{database_error.__class__.__name__} occurred."
+        logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
+        return flask.make_response(error_string, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     try:
         n_deleted_rows = sql_iris_table.delete(where=where)
@@ -195,7 +206,13 @@ def sync_iris():
 def summarize_iris():
     """Get a json summary of the columns and values in stored data."""
     iris_sql_path = os.getenv("SQL_PATH", "./iris.sql")
-    sql_connection = sql_operations.get_connection(iris_sql_path)
+    try:
+        sql_connection = sql_operations.get_connection(iris_sql_path)
+    except sqlite3.Error as database_error:
+        error_string = f"Error on opening database connection: " \
+                       f"{database_error.__class__.__name__} occurred."
+        logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
+        return flask.make_response(error_string, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     json_summary = flask.jsonify(sql_iris_table.summary())
     return json_summary
