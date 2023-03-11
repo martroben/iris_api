@@ -1,5 +1,4 @@
 
-import csv
 import json
 import pytest
 import iris
@@ -85,27 +84,26 @@ def test_full_initiation():
     assert full_iris.species == "Iris species name"
 
 
-def test_forbidden_initiation_warning():
-    with pytest.warns(Warning):
-        iris.Iris(
-            sepal_length=111,
-            sepal_width=222,
-            petal_length=333,
-            petal_width=444,
-            species="Iris species name",
-            forbidden_attribute=555)
+def test_forbidden_initiation_warning(caplog):
+    iris.Iris(
+        sepal_length=111,
+        sepal_width=222,
+        petal_length=333,
+        petal_width=444,
+        species="Iris species name",
+        forbidden_attribute=555)
+    assert "forbidden" in caplog.text
 
 
 def test_forbidden_initiation_ignore():
-    with pytest.warns(Warning):
-        forbidden_iris = iris.Iris(
-            sepal_length=111,
-            sepal_width=222,
-            petal_length=333,
-            petal_width=444,
-            species="Iris species name",
-            forbidden_attribute=555)
-        assert len(forbidden_iris.__annotations__) == 5
+    forbidden_iris = iris.Iris(
+        sepal_length=111,
+        sepal_width=222,
+        petal_length=333,
+        petal_width=444,
+        species="Iris species name",
+        forbidden_attribute=555)
+    assert len(forbidden_iris.__annotations__) == 5
 
 
 def test_forbidden_assignment():
@@ -165,29 +163,25 @@ def test_load_from_csv_partial():
     assert iris_list[1].as_dict() == iris2_reference
 
 
-def test_load_from_csv_forbidden():
-    with pytest.warns(Warning):
-        iris_list = iris.from_csv(forbidden_iris_csv)
-        assert len(iris_list) == 2
+def test_load_from_csv_forbidden(caplog):
+    iris_list = iris.from_csv(forbidden_iris_csv)
+    assert "forbidden" in caplog.text
 
 
 def test_load_from_json():
-    test_json_string = json.dumps([full_iris_dict, full_iris_dict2])
-    iris_list = iris.from_json(test_json_string)
+    iris_list = iris.from_json([full_iris_dict, full_iris_dict2])
     assert iris_list[0].as_dict() == full_iris_dict
     assert iris_list[1].as_dict() == full_iris_dict2
 
 
 def test_load_from_json_partial():
-    test_json_string = json.dumps([full_iris_dict, partial_iris_dict])
-    iris_list = iris.from_json(test_json_string)
+    iris_list = iris.from_json([full_iris_dict, partial_iris_dict])
     partial_iris_dict_dump = {key: value for key, value in iris_list[1].as_dict().items() if value}
     assert iris_list[0].as_dict() == full_iris_dict
     assert partial_iris_dict_dump == partial_iris_dict
 
 
-def test_load_from_json_forbidden():
-    with pytest.warns(Warning):
-        test_json_string = json.dumps([full_iris_dict, forbidden_iris_dict])
-        iris_list = iris.from_json(test_json_string)
-        assert len(iris_list) == 2
+def test_load_from_json_forbidden(caplog):
+    iris_list = iris.from_json([full_iris_dict, forbidden_iris_dict])
+    assert "forbidden" in caplog.text
+    assert len(iris_list) == 2

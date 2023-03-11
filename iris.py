@@ -2,7 +2,8 @@
 # standard
 import csv
 import json
-import warnings
+import logging
+import os
 
 
 ###########
@@ -24,10 +25,11 @@ class Iris:
         for attribute, attribute_type in allowed_attributes.items():
             self.__setattr__(attribute, kwargs.pop(attribute, attribute_type()))
         if len(kwargs):
-            warnings.warn(f"Can't assign forbidden attributes to class {self.__class__.__name__}. "
-                          f"Problematic attributes: {', '.join(list(kwargs.keys()))}. "
-                          f"Only the following attributes are allowed: "
-                          f"{', '.join(list(allowed_attributes.keys()))}.")
+            warning_string = f"Can't assign forbidden attributes to class {self.__class__.__name__}. "\
+                             f"Problematic attributes: {', '.join(list(kwargs.keys()))}. "\
+                             f"Only the following attributes are allowed: "\
+                             f"{', '.join(list(allowed_attributes.keys()))}."
+            logging.getLogger(os.getenv("LOG_NAME")).warning(warning_string)
 
     def __setattr__(self, key, value):
         """Only allow attributes defined in class variables."""
@@ -69,4 +71,3 @@ def from_csv(data: str) -> list[Iris]:
 
 def from_json(data: list) -> list[Iris]:
     return [Iris(**row) for row in data]
-
