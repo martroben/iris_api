@@ -100,7 +100,7 @@ def get_iris():
         return flask.jsonify(data)
     except sqlite3.Error as database_error:
         error_string = f"Error on opening database connection: " \
-                       f"{database_error.__class__.__name__} occurred."
+                       f"{database_error.__class__.__name__} occurred"
         logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
         return flask.make_response(error_string, 500)
 
@@ -138,7 +138,7 @@ def post_iris(iris_data: list[iris.Iris] = None, unique: bool = False):
         sql_connection = sql_operations.get_connection(iris_sql_path)
     except sqlite3.Error as database_error:
         error_string = f"Error on opening database connection: " \
-                       f"{database_error.__class__.__name__} occurred."
+                       f"{database_error.__class__.__name__} occurred"
         logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
         return flask.make_response(error_string, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
@@ -165,7 +165,7 @@ def delete_iris():
         sql_connection = sql_operations.get_connection(iris_sql_path)
     except sqlite3.Error as database_error:
         error_string = f"Error on opening database connection: " \
-                       f"{database_error.__class__.__name__} occurred."
+                       f"{database_error.__class__.__name__} occurred"
         logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
         return flask.make_response(error_string, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
@@ -210,7 +210,7 @@ def summarize_iris():
         sql_connection = sql_operations.get_connection(iris_sql_path)
     except sqlite3.Error as database_error:
         error_string = f"Error on opening database connection: " \
-                       f"{database_error.__class__.__name__} occurred."
+                       f"{database_error.__class__.__name__} occurred"
         logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
         return flask.make_response(error_string, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)

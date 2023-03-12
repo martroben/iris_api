@@ -226,6 +226,8 @@ def get_table_summary(rows: list) -> dict[dict]:
     for column_name, column_type in class_annotations:
         column_summary = dict()
         column_summary["type"] = column_type.__name__
+        column_summary["n_total_values"] = 0        # Assume zero and overwrite if not
+        column_summary["n_unique_values"] = 0       # Assume zero and overwrite if not
         if not null_table:
             values = [getattr(row, column_name) for row in rows]
             column_summary["n_total_values"] = len([value for value in values if value is not None])
