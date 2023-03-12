@@ -34,7 +34,8 @@ Saves disk space, but slows down re-building image
 sudo docker volume create --label iris_data
 ```
 
-##### Run to test from host
+## Run
+##### Testing from host
 Tested on Ubuntu 22.04, bash 5.1.16
 ```Shell
 sudo docker run \
@@ -48,7 +49,7 @@ sudo docker run \
 ```
 (`--publish` exposes container port on host)
 
-##### Run to test from a container
+##### Testing from a tester container shell
 Create docker network:
 ```Shell
 sudo docker network create \
@@ -90,7 +91,7 @@ Use `http://127.0.0.1:7000` in place of `http://188.0.0.1:7000` if testing from 
 curl http://188.0.0.1:7000/
 ```
 
-##### 1. Check summary with no data added (empty table)
+##### 1. Check /summary endpoint with no data added (empty table)
 ```Shell
 curl http://188.0.0.1:7000/api/v1/iris/summary
 ```
@@ -125,7 +126,7 @@ Result:
 }
 ```
 
-##### 2. Use sync endpoint to pull, de-duplicate and store data
+##### 2. Use /sync endpoint to pull, de-duplicate and store data
 ```Shell
 curl http://188.0.0.1:7000/api/v1/iris/sync
 ```
@@ -134,7 +135,7 @@ Result:
 Inserted 147 rows.
 ```
 
-##### 3. Get summary again to see that data has been inserted
+##### 3. Get summary again to verify that data has been inserted
 ```Shell
 curl http://188.0.0.1:7000/api/v1/iris/summary
 ```
@@ -201,7 +202,7 @@ Result:
 Inserted 3 rows.
 ```
 
-##### 6. Insert duplicates of existing values
+##### 6. Post duplicates of existing values
 ```Shell
 curl -X POST http://188.0.0.1:7000/api/v1/iris -H "Content-Type: application/json" -d "[{\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}, {\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}]"
 ```
@@ -210,7 +211,7 @@ Result:
 Inserted 2 rows.
 ```
 
-##### 7. Insert same duplicate values by the /unique endpoint
+##### 7. Post duplicates of existing values by the /unique endpoint
 ```Shell
 curl -X POST http://188.0.0.1:7000/api/v1/iris/unique -H "Content-Type: application/json" -d "[{\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}, {\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}]"
 ```
@@ -302,7 +303,7 @@ Result:
 Deleted 4 rows
 ```
 
-##### 11. Summary to get current state
+##### 11. Summary of current state
 ```Shell
 curl http://188.0.0.1:7000/api/v1/iris/summary
 ```
@@ -358,7 +359,7 @@ Result:
 Deleted 150 rows
 ```
 
-##### 13. Get summary to see that data is deleted
+##### 13. Get summary to verify that all data is deleted
 ```Shell
 curl http://188.0.0.1:7000/api/v1/iris/summary
 ```
