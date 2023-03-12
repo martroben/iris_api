@@ -55,6 +55,10 @@ class Iris:
     def __eq__(self, other):
         return hash(self) == hash(other)
 
+    def __str__(self):
+        values = [f"{attribute}: {self.__getattribute__(attribute)}" for attribute in self.__class__.__annotations__]
+        return ", ".join(values)
+
     def as_dict(self):
         """Return all class attributes and values as dict."""
         return {attribute: self.__getattribute__(attribute)
@@ -67,10 +71,10 @@ class Iris:
 
 def from_csv(data: str) -> list[Iris]:
     data_raw = csv.DictReader(data.splitlines())
-    data = list()
+    iris_data = list()
     for row in data_raw:
-        data += [Iris(**row)]
-    return data
+        iris_data += [Iris(**row)]
+    return iris_data
 
 
 def from_json(data: list) -> list[Iris]:

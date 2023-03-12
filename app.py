@@ -12,12 +12,14 @@ import iris
 import sql_operations
 
 
-# os.environ["SQL_PATH"] = "./iris.sql"
-# os.environ["DEFAULT_IRIS_DATA_URL"] = "https://gist.githubusercontent.com/curran/" \
-#                                       "a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
-# os.environ["LOG_LEVEL"] = "DEBUG"
-# os.environ["LOG_NAME"] = "iris"
-# os.environ["API_PORT"] = 7000
+os.environ["SQL_PATH"] = "./iris.sql"
+os.environ["DEFAULT_IRIS_DATA_URL"] = "https://gist.githubusercontent.com/curran/" \
+                                      "a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+os.environ["LOG_LEVEL"] = "DEBUG"
+os.environ["LOG_NAME"] = "iris"
+os.environ["API_PORT"] = "7000"
+os.environ["FLASK_DEBUG_MODE"] = "0"
+
 
 ###############
 # Set logging #
@@ -42,7 +44,7 @@ logger.addHandler(handler)
 ###################
 
 app = flask.Flask(__name__)
-# app.config["DEBUG"] = True
+app.config["DEBUG"] = bool(os.environ.get("FLASK_DEBUG_MODE", False))
 
 
 @app.route('/', methods=['GET'])
@@ -112,9 +114,8 @@ def parse_post_data(request: flask.request) -> list[iris.Iris]:
     :param request: flask request object
     :return: list of parsed Iris objects
     """
-    content_type = request.headers.get("Content-Type")
-    if content_type.lower == "text/csv":
-        payload = request.get_data()
+    if request.content_type.lower() == "text/csv":
+        payload = request.get_data().decode()
         iris_data = iris.from_csv(payload)
     else:
         payload = request.get_json()
@@ -223,7 +224,6 @@ def summarize_iris():
 #######
 
 if __name__ == '__main__':
-
     app.run(
         host="0.0.0.0",
         port=os.getenv("API_PORT", 7000),

@@ -143,7 +143,6 @@ def compile_where_statement(parsed_inputs: list[tuple]) -> tuple[str, list]:
     statement_strings = list()
     values = list()
     for statement in parsed_inputs:
-        print(statement)
         if statement[1].lower() == "in":
             in_values = [typecast_input_value(value) for value in parse_in_values(statement[2])]
             placeholders = ','.join(['?'] * len(in_values))          # String in the form ?,?,?,...
