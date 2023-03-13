@@ -16,10 +16,10 @@ cd iris_api
 
 ##### Build Docker image
 ```Shell
-sudo docker build
- --rm
-  -t iris_api
-  -f api.Dockerfile .
+sudo docker build \
+  --rm \
+  -t iris_api \
+  -f Dockerfile .
 ```
 Useful resources for building images:
 - https://testdriven.io/blog/docker-best-practices/

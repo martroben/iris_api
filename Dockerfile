@@ -13,7 +13,7 @@ COPY --from=builder /wheels /wheels
 COPY install_packages.sh .
 RUN chmod +x ./install_packages.sh && ./install_packages.sh && pip install --no-cache /wheels/* && rm -Rfv /wheels
 RUN addgroup --system api_user && adduser --system --group api_user
-COPY app.py general.py iris.py sql_operations.py entrypoint.sh ./
+COPY app.py log.py iris.py sql_operations.py entrypoint.sh ./
 # Change /iris_data if mount directory changes
 RUN chmod +x ./entrypoint.sh && mkdir -p /iris_data && chown api_user /iris_data
 USER api_user
