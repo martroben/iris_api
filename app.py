@@ -1,6 +1,5 @@
 
 # standard
-import logging
 import os
 from requests.exceptions import MissingSchema, ConnectionError
 import sqlite3
@@ -9,6 +8,7 @@ import flask
 # local
 import general
 import iris
+import log
 import sql_operations
 
 
@@ -25,20 +25,10 @@ os.environ["FLASK_DEBUG_MODE"] = "0"
 # Set logging #
 ###############
 
-log_name = os.getenv("LOG_NAME", "root")            # Use only names that can also be folder names.
+log_name = os.getenv("LOG_NAME", "root")  # Use only names that can also be folder names.
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-# Unique sequence to indicate where to cut syslog entries
-log_indicator = os.environ.get("LOG_INDICATOR", "rabbitofcaerbannog")
-
-logger = logging.getLogger(log_name)
-logger.setLevel(log_level)
-handler = logging.StreamHandler()                   # Direct logs to stdout
-formatter = logging.Formatter(
-    fmt=f"{log_indicator}{{asctime}} | {{name}} | {{funcName}} | {{levelname}}: {{message}}",
-    datefmt="%m/%d/%Y %H:%M:%S",
-    style="{")
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+log_indicator = os.environ.get("LOG_INDICATOR", str())  # Unique sequence to indicate where to cut syslog entries.
+logger = log.get_logger(log_name, log_level, log_indicator)
 
 
 ###################
@@ -103,10 +93,9 @@ def get_iris():
         data = [row.as_dict() for row in sql_iris_table.select_iris(where=where)]
         return flask.jsonify(data)
     except sqlite3.Error as database_error:
-        error_string = f"Error on opening database connection: " \
-                       f"{database_error.__class__.__name__} occurred"
-        logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
-        return flask.make_response(error_string, 500)
+        log_string = log.SqlConnectError(database_error, database_path=iris_sql_path)
+        logger.error(log_string)
+        return flask.make_response(log_string.short, 500)
 
 
 def parse_post_data(request: flask.request) -> list[iris.Iris]:
@@ -140,10 +129,9 @@ def post_iris(iris_data: list[iris.Iris] = None, unique: bool = False):
     try:
         sql_connection = sql_operations.get_connection(iris_sql_path)
     except sqlite3.Error as database_error:
-        error_string = f"Error on opening database connection: " \
-                       f"{database_error.__class__.__name__} occurred"
-        logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
-        return flask.make_response(error_string, 500)
+        log_string = log.SqlConnectError(database_error, database_path=iris_sql_path)
+        logger.error(log_string)
+        return flask.make_response(log_string.short, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     n_rows_inserted = sql_iris_table.insert_iris(data=iris_data, unique=unique)
     return f"Inserted {n_rows_inserted} rows."
@@ -167,20 +155,17 @@ def delete_iris():
     try:
         sql_connection = sql_operations.get_connection(iris_sql_path)
     except sqlite3.Error as database_error:
-        error_string = f"Error on opening database connection: " \
-                       f"{database_error.__class__.__name__} occurred"
-        logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
-        return flask.make_response(error_string, 500)
+        log_string = log.SqlConnectError(database_error, database_path=iris_sql_path)
+        logger.error(log_string)
+        return flask.make_response(log_string.short, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     try:
         n_deleted_rows = sql_iris_table.delete(where=where)
         return f"Deleted {n_deleted_rows} rows"
     except ValueError as value_error:
-        error_string = f"Couldn't delete data from sql. " \
-                       f"{value_error.__class__.__name__} occurred: " \
-                       f"{value_error}"
-        logger.error(error_string)
-        return flask.make_response(error_string, 400)
+        log_string = log.SqlDeleteError(value_error)
+        logger.error(log_string)
+        return flask.make_response(log_string.short, 400)
 
 
 @app.route('/api/v1/iris/sync', methods=['Get'])
@@ -200,9 +185,9 @@ def sync_iris():
         result_string = post_iris(iris_data, unique=True)
         return result_string
     except (MissingSchema, ConnectionError) as bad_url_error:
-        error_string = "Error on downloading Iris data."
-        logger.error(f"{error_string} Url: {iris_data_url}. Error: {bad_url_error}")
-        return flask.make_response(error_string, 500)
+        log_string = log.UrlError(bad_url_error, iris_data_url)
+        logger.error(log_string)
+        return flask.make_response(log_string.short, 500)
 
 
 @app.route('/api/v1/iris/summary', methods=['Get'])
@@ -212,10 +197,9 @@ def summarize_iris():
     try:
         sql_connection = sql_operations.get_connection(iris_sql_path)
     except sqlite3.Error as database_error:
-        error_string = f"Error on opening database connection: " \
-                       f"{database_error.__class__.__name__} occurred"
-        logger.error(f"{error_string}. Database path: {iris_sql_path}. Error: {database_error}")
-        return flask.make_response(error_string, 500)
+        log_string = log.SqlConnectError(database_error, database_path=iris_sql_path)
+        logger.error(log_string)
+        return flask.make_response(log_string.short, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     json_summary = flask.jsonify(sql_iris_table.summary())
     return json_summary
