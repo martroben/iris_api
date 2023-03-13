@@ -12,16 +12,16 @@ import iris
 import log
 import sql_operations
 
-
-os.environ["SQL_PATH"] = "./iris.sql"
-os.environ["DEFAULT_IRIS_DATA_URL"] = "https://gist.githubusercontent.com/curran/" \
-                                      "a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
-os.environ["LOG_LEVEL"] = "INFO"
-os.environ["LOG_NAME"] = "iris"
-os.environ["API_PORT"] = "7000"
-os.environ["API_HOST"] = "0.0.0.0"
-os.environ["FLASK_DEBUG_MODE"] = "0"
-os.environ["LOG_INDICATOR"] = "rabbitofcaerbannog"
+# Uncomment for testing on host (not Docker)
+# os.environ["SQL_PATH"] = "./iris.sql"
+# os.environ["DEFAULT_IRIS_DATA_URL"] = "https://gist.githubusercontent.com/curran/" \
+#                                       "a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+# os.environ["LOG_LEVEL"] = "INFO"
+# os.environ["LOG_NAME"] = "iris"
+# os.environ["API_PORT"] = "7000"
+# os.environ["API_HOST"] = "0.0.0.0"
+# os.environ["FLASK_DEBUG_MODE"] = "0"
+# os.environ["LOG_INDICATOR"] = "rabbitofcaerbannog"
 
 
 ###############
@@ -34,33 +34,31 @@ log_indicator = os.environ.get("LOG_INDICATOR", str())  # Unique sequence to ind
 logger = log.get_logger(log_name, log_level, log_indicator)
 
 
+###############
+# Setup Flask #
+###############
+
+app = flask.Flask(__name__)
+
+# Add handlers to Flask loggers
+# Flask uses a logger by the app name and a inherited 'werkzeug' logger
+flask_logs = [app.name, "werkzeug"]
+for log_name in flask_logs:
+    app_logger = logging.getLogger(log_name)
+    app_logger.handlers.clear()
+    app_logger.addHandler(logger.handlers[0])
+    app_logger.setLevel(log_level)
+
+app.config["DEBUG"] = bool(int(os.environ.get("FLASK_DEBUG_MODE", 0)))
+
+
 ###################
 # Flask endpoints #
 ###################
 
-app = flask.Flask(__name__)
-
-handler = logging.StreamHandler()  # Direct logs to stdout
-formatter = logging.Formatter(
-    fmt=f"{log_indicator}{{asctime}} | {{name}} | {{funcName}} | {{levelname}}: {{message}}",
-    datefmt="%m/%d/%Y %H:%M:%S",
-    style="{")
-handler.setFormatter(formatter)
-app.logger.addHandler(handler)
-app.logger
-app.logger.setLevel(log_level)
-app.logger.removeHandler(logging.StreamHandler)
-
-for h in app.logger.handlers:
-    print('     %s' % h)
-
 @app.route('/', methods=['GET'])
 def home():
-    # flog.default_handler.setFormatter(logging.Formatter("xxx %(message)s"))
-    app.logger.debug("Debug!")
-    app.logger.info("Info!")
-    app.logger.warning("Warn!")
-    app.logger.error("Error!")
+    """Root endpoint with api info."""
     info = """\
     <h1>Iris dataset api</h1>
     <p>path: ./v1/api</p>
@@ -232,8 +230,6 @@ def summarize_iris():
 if __name__ == '__main__':
     api_host = os.getenv("API_HOST", "0.0.0.0")
     api_port = os.getenv("API_PORT", 7000)
-    flask_debug_mode = bool(int(os.environ.get("FLASK_DEBUG_MODE", 0)))
-    app.config["DEBUG"] = flask_debug_mode
 
     app.run(
         host=api_host,

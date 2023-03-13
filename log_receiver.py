@@ -1,9 +1,24 @@
 
 # standard
 from datetime import datetime
+import logging
 import os
 import re
 import socketserver
+
+
+# Helper function to create a logger with correct formatting for the receiver
+def get_logger(name: str, level: str, indicator: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    handler = logging.StreamHandler()                       # Direct logs to stdout
+    formatter = logging.Formatter(
+        fmt=f"{indicator}{{asctime}} | {{name}} | {{funcName}} | {{levelname}}: {{message}}",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        style="{")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
 
 
 def make_dirs(path):
@@ -12,8 +27,16 @@ def make_dirs(path):
 
 
 class LogSaver:
+    """
+    Class to handle saving logs. Saves the log to a folder designated by the log name in log string.
+    Creates a new file for every new calendar day.
+    """
+    # Unique string that allows stdout records to be recognized as app logs and strip to syslog info
     log_indicator = os.environ.get("LOG_INDICATOR", "rabbitofcaerbannog")
-    log_name_pattern = re.compile(r"\d{2}/\d{2}/\d{4}\s\d{2}:\d{2}:\d{2}\s\|\s(.+?)\s\|")
+    # 10/02/2023 11:22:33 | log_name_without_whitespaces | other data
+    # Regex pattern to get    ^string in this position^
+    log_name_pattern = re.compile(r"\d{2}/\d{2}/\d{4}\s\d{2}:\d{2}:\d{2}\s\|\s(\S+?)\s\|")
+    # Log folder root
     logs_path = os.getenv("LOG_FOLDER_PATH", os.path.join("/", "log"))
 
     def __init__(self):
@@ -22,15 +45,19 @@ class LogSaver:
 
     def save(self, log_data):
         if self.log_indicator in log_data:
-            log_parsed = log_data.split(self.log_indicator)[1].strip()
-            log_name = self.log_name_pattern.search(log_parsed).group(1)
+            log_string = log_data.split(self.log_indicator)[1].strip()
+            log_name = self.log_name_pattern.search(log_string).group(1)
             file_path = os.path.join(self.logs_path, log_name, f"{datetime.today().strftime('%Y_%m_%d')}")
-            make_dirs(file_path)
-            with open(file_path, "a") as log_file:
-                log_file.write(f"{log_parsed}\n")
+        else:                           # Use separate folder for stdout without the indicator (i.e. non-app-related)
+            log_string = log_data
+            file_path = os.path.join(self.logs_path, "other_stdout", f"{datetime.today().strftime('%Y_%m_%d')}")
+        make_dirs(file_path)
+        with open(file_path, "a") as log_file:
+            log_file.write(f"{log_string}\n")
 
 
 class UDPHandler(socketserver.BaseRequestHandler):
+    """Socket server class to handle incoming UDP requests."""
     log_saver = LogSaver()
 
     def handle(self):
