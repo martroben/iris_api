@@ -14,9 +14,12 @@ git clone https://github.com/martroben/iris_api
 cd iris_api
 ```
 
-##### Build image
+##### Build Docker image
 ```Shell
-sudo docker build -t iris_api --rm -f api.Dockerfile .
+sudo docker build
+ --rm
+  -t iris_api
+  -f api.Dockerfile .
 ```
 Useful resources for building images:
 - https://testdriven.io/blog/docker-best-practices/
@@ -29,7 +32,7 @@ sudo docker image prune --filter label=stage=iris_api_builder -f
 Saves disk space, but slows down re-building image
 
 
-##### Create volume
+##### Create a Docker volume
 ```Shell
 sudo docker volume create --label iris_data
 ```
@@ -39,13 +42,13 @@ sudo docker volume create --label iris_data
 Tested on Ubuntu 22.04, bash 5.1.16
 ```Shell
 sudo docker run \
-	--rm \
-	--name iris_api \
-	--mount source=iris_data,target=/iris_data \
-	--publish 7000:7000 \
-	--env-file .env_showcase \
-	iris_api \
-	python3 /api/app.py
+  --rm \
+  --name iris_api \
+  --mount source=iris_data,target=/iris_data \
+  --publish 7000:7000 \
+  --env-file .env_showcase \
+  iris_api \
+  python3 /api/app.py
 ```
 (`--publish` exposes container port on host)
 
@@ -53,30 +56,30 @@ sudo docker run \
 Create docker network:
 ```Shell
 sudo docker network create \
-    --subnet=188.0.0.0/24 \
-    iris_network
+  --subnet=188.0.0.0/24 \
+  iris_network
 ```
 Start the api container:
 ```Shell
 sudo docker run \
-	--rm \
-	--name iris_api \
-	--mount source=iris_data,target=/iris_data \
-	--network iris_network \
-	--ip 188.0.0.2 \
-	--env-file .env_showcase \
-	iris_api \
-	python3 /api/app.py
+  --rm \
+  --name iris_api \
+  --mount source=iris_data,target=/iris_data \
+  --network iris_network \
+  --ip 188.0.0.2 \
+  --env-file .env_showcase \
+  iris_api \
+  python3 /api/app.py
 ```
 Run an interactive tester container:
 ```Shell
 sudo docker run \
-    --rm \
-	--name tester \
-	--network iris_network \
-	--ip 188.0.0.3 \
-	--it \
-	alpine
+  --rm \
+  --name tester \
+  --network iris_network \
+  --ip 188.0.0.3 \
+  -it \
+  alpine
 ```
 Install curl and head in tester container shell:
 ```Shell
