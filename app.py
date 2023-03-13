@@ -2,12 +2,12 @@
 # standard
 import logging
 import os
-from requests.exceptions import MissingSchema, ConnectionError
+import requests
+from requests.exceptions import MissingSchema, ConnectionError, HTTPError
 import sqlite3
 # external
 import flask
 # local
-import general
 import iris
 import log
 import sql_operations
@@ -186,6 +186,18 @@ def delete_iris():
         return flask.make_response(log_entry.short, 400)
 
 
+def download_url_data(url: str) -> str:
+    """
+    Helper function for downloading string data.
+    :param url: Data url
+    :return: Data string
+    """
+    response = requests.get(url)
+    if not response:
+        raise requests.HTTPError(f"{response.status_code} ({response.reason}). url: {url}.")
+    return response.text
+
+
 @app.route('/api/v1/iris/sync', methods=['Get'])
 def sync_iris():
     """
@@ -197,13 +209,17 @@ def sync_iris():
     iris_data_url = flask.request.args.get("url", os.getenv("DEFAULT_IRIS_DATA_URL"))
     # Download data
     try:
-        iris_data_csv = general.download_url_data(iris_data_url)
+        iris_data_csv = download_url_data(iris_data_url)
         iris_data = iris.from_csv(iris_data_csv)
         # Insert to sql
         result_string = post_iris(iris_data, unique=True)
         return result_string
     except (MissingSchema, ConnectionError) as bad_url_error:
         log_entry = log.UrlError(bad_url_error, iris_data_url)
+        log_entry.record("ERROR")
+        return flask.make_response(log_entry.short, 400)
+    except HTTPError as download_error:
+        log_entry = log.DownloadError(download_error)
         log_entry.record("ERROR")
         return flask.make_response(log_entry.short, 500)
 
