@@ -39,7 +39,7 @@ sudo docker volume create --label iris_data
 
 ## Run
 ##### Testing from host
-Tested on Ubuntu 22.04, bash 5.1.16
+Tested showcase on Ubuntu 22.04, bash 5.1.16
 ```Shell
 sudo docker run \
   --rm \
@@ -52,7 +52,7 @@ sudo docker run \
 ```
 (`--publish` exposes container port on host)
 
-##### Testing from a tester container shell
+##### Testing from a tester container
 Create docker network:
 ```Shell
 sudo docker network create \
@@ -68,10 +68,20 @@ sudo docker run \
   --network iris_network \
   --ip 188.0.0.2 \
   --env-file .env_showcase \
+  --log-driver syslog \
+  --log-opt syslog-address=udp://188.0.0.4:7001 \
+  --log-opt syslog-format=rfc3164 \
   iris_api \
   python3 /api/app.py
 ```
-Run an interactive tester container:
+Note that the following flags can be skipped if a separate [log receiver](https://github.com/martroben/log_receiver) container is not used:
+```Shell
+  --log-driver syslog \
+  --log-opt syslog-address=udp://188.0.0.4:7001 \
+  --log-opt syslog-format=rfc3164 \
+```
+
+Run an interactive tester container to test the api:
 ```Shell
 sudo docker run \
   --rm \
@@ -81,22 +91,22 @@ sudo docker run \
   -it \
   alpine
 ```
-Install curl and head in tester container shell:
+`curl` and `head` need to be installed, since the alpine image doesn't have them:
 ```Shell
 apk add curl coreutils
 ```
 
 
 ## Showcase
-Use `http://127.0.0.1:7000` in place of `http://188.0.0.1:7000` if testing from host
+Use `http://127.0.0.1:7000` in place of `http://188.0.0.2:7000` if testing from host
 ##### 0. Check if service is up
 ```Shell
-curl http://188.0.0.1:7000/
+curl http://188.0.0.2:7000/
 ```
 
 ##### 1. Check /summary endpoint with no data added (empty table)
 ```Shell
-curl http://188.0.0.1:7000/api/v1/iris/summary
+curl http://188.0.0.2:7000/api/v1/iris/summary
 ```
 Result:
 ```
@@ -131,7 +141,7 @@ Result:
 
 ##### 2. Use /sync endpoint to pull, de-duplicate and store data
 ```Shell
-curl http://188.0.0.1:7000/api/v1/iris/sync
+curl http://188.0.0.2:7000/api/v1/iris/sync
 ```
 Result:
 ```
@@ -140,7 +150,7 @@ Inserted 147 rows.
 
 ##### 3. Get summary again to verify that data has been inserted
 ```Shell
-curl http://188.0.0.1:7000/api/v1/iris/summary
+curl http://188.0.0.2:7000/api/v1/iris/summary
 ```
 Result:
 ```
@@ -187,7 +197,7 @@ Result:
 
 ##### 4. Post new values in json format
 ```Shell
-curl -X POST http://188.0.0.1:7000/api/v1/iris -H "Content-Type: application/json" -d "[{\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}, {\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}]"
+curl -X POST http://188.0.0.2:7000/api/v1/iris -H "Content-Type: application/json" -d "[{\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}, {\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}]"
 ```
 Result:
 ```
@@ -196,7 +206,7 @@ Inserted 2 rows.
 
 ##### 5. Post new values in csv format
 ```Shell
-curl -X POST http://188.0.0.1:7000/api/v1/iris -H "Content-Type: text/csv" -d $'sepal_length,sepal_width,petal_length,petal_width,species\n5.1,3.5,1.4,0.2,setosa\n5.2,2.7,3.9,1.4,versicolor\n7.2,3.0,5.8,1.6,virginica'
+curl -X POST http://188.0.0.2:7000/api/v1/iris -H "Content-Type: text/csv" -d $'sepal_length,sepal_width,petal_length,petal_width,species\n5.1,3.5,1.4,0.2,setosa\n5.2,2.7,3.9,1.4,versicolor\n7.2,3.0,5.8,1.6,virginica'
 ```
 Have to use `$'csv-data-to-insert'` (with single quotes!) format in bash curl for the `\n` characters to be sent as newlines, not literal \n.
 
@@ -207,7 +217,7 @@ Inserted 3 rows.
 
 ##### 6. Post duplicates of existing values
 ```Shell
-curl -X POST http://188.0.0.1:7000/api/v1/iris -H "Content-Type: application/json" -d "[{\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}, {\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}]"
+curl -X POST http://188.0.0.2:7000/api/v1/iris -H "Content-Type: application/json" -d "[{\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}, {\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}]"
 ```
 Result:
 ```
@@ -216,7 +226,7 @@ Inserted 2 rows.
 
 ##### 7. Post duplicates of existing values by the /unique endpoint
 ```Shell
-curl -X POST http://188.0.0.1:7000/api/v1/iris/unique -H "Content-Type: application/json" -d "[{\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}, {\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}]"
+curl -X POST http://188.0.0.2:7000/api/v1/iris/unique -H "Content-Type: application/json" -d "[{\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}, {\"petal_length\": 10, \"petal_width\": 20, \"sepal_length\": 30, \"sepal_width\": 40}]"
 ```
 Result:
 ```
@@ -225,7 +235,7 @@ Inserted 0 rows.
 
 ##### 8. Get all
 ```Shell
-curl -sN http://188.0.0.1:7000/api/v1/iris/all | head --bytes 512
+curl -sN http://188.0.0.2:7000/api/v1/iris/all | head --bytes 512
 ```
 Result:
 ```
@@ -261,7 +271,7 @@ Result:
 
 ##### 9. Get with 'where' filter
 ```Shell
-curl "http://188.0.0.1:7000/api/v1/iris?where=sepal_width>3.9&where=species%20IN%20(virginica,setosa)"
+curl "http://188.0.0.2:7000/api/v1/iris?where=sepal_width>3.9&where=species%20IN%20(virginica,setosa)"
 ```
 Result:
 ```
@@ -299,7 +309,7 @@ Result:
 
 ##### 10. Delete with the same 'where' filter
 ```Shell
-curl -X DELETE "http://188.0.0.1:7000/api/v1/iris?where=sepal_width>3.9&where=species%20IN%20(virginica,setosa)"
+curl -X DELETE "http://188.0.0.2:7000/api/v1/iris?where=sepal_width>3.9&where=species%20IN%20(virginica,setosa)"
 ```
 Result:
 ```
@@ -308,7 +318,7 @@ Deleted 4 rows
 
 ##### 11. Summary of current state
 ```Shell
-curl http://188.0.0.1:7000/api/v1/iris/summary
+curl http://188.0.0.2:7000/api/v1/iris/summary
 ```
 Result:
 ```
@@ -355,7 +365,7 @@ Result:
 
 ##### 12. Delete using the /all endpoint
 ```Shell
-curl -X DELETE http://188.0.0.1:7000/api/v1/iris/all
+curl -X DELETE http://188.0.0.2:7000/api/v1/iris/all
 ```
 Result:
 ```
@@ -364,7 +374,7 @@ Deleted 150 rows
 
 ##### 13. Get summary to verify that all data is deleted
 ```Shell
-curl http://188.0.0.1:7000/api/v1/iris/summary
+curl http://188.0.0.2:7000/api/v1/iris/summary
 ```
 Result:
 ```
