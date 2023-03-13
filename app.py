@@ -13,15 +13,15 @@ import log
 import sql_operations
 
 # Uncomment for testing on host (not Docker)
-# os.environ["SQL_PATH"] = "./iris.sql"
-# os.environ["DEFAULT_IRIS_DATA_URL"] = "https://gist.githubusercontent.com/curran/" \
-#                                       "a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
-# os.environ["LOG_LEVEL"] = "INFO"
-# os.environ["LOG_NAME"] = "iris"
-# os.environ["API_PORT"] = "7000"
-# os.environ["API_HOST"] = "0.0.0.0"
-# os.environ["FLASK_DEBUG_MODE"] = "0"
-# os.environ["LOG_INDICATOR"] = "rabbitofcaerbannog"
+os.environ["SQL_PATH"] = "./iris.sql"
+os.environ["DEFAULT_IRIS_DATA_URL"] = "https://gist.githubusercontent.com/curran/" \
+                                      "a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+os.environ["LOG_LEVEL"] = "INFO"
+os.environ["LOG_NAME"] = "iris"
+os.environ["API_PORT"] = "7000"
+os.environ["API_HOST"] = "0.0.0.0"
+os.environ["FLASK_DEBUG_MODE"] = "0"
+os.environ["LOG_INDICATOR"] = "rabbitofcaerbannog"
 
 
 ###############
@@ -214,8 +214,8 @@ def sync_iris():
         # Insert to sql
         result_string = post_iris(iris_data, unique=True)
         return result_string
-    except (MissingSchema, ConnectionError) as bad_url_error:
-        log_entry = log.UrlError(bad_url_error, iris_data_url)
+    except (MissingSchema, ConnectionError) as url_error:
+        log_entry = log.UrlError(url_error, iris_data_url)
         log_entry.record("ERROR")
         return flask.make_response(log_entry.short, 400)
     except HTTPError as download_error:
