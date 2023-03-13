@@ -18,7 +18,9 @@ os.environ["DEFAULT_IRIS_DATA_URL"] = "https://gist.githubusercontent.com/curran
 os.environ["LOG_LEVEL"] = "DEBUG"
 os.environ["LOG_NAME"] = "iris"
 os.environ["API_PORT"] = "7000"
+os.environ["API_HOST"] = "0.0.0.0"
 os.environ["FLASK_DEBUG_MODE"] = "0"
+os.environ["LOG_INDICATOR"] = "rabbitofcaerbannog"
 
 
 ###############
@@ -36,7 +38,6 @@ logger = log.get_logger(log_name, log_level, log_indicator)
 ###################
 
 app = flask.Flask(__name__)
-app.config["DEBUG"] = bool(os.environ.get("FLASK_DEBUG_MODE", False))
 
 
 @app.route('/', methods=['GET'])
@@ -93,9 +94,9 @@ def get_iris():
         data = [row.as_dict() for row in sql_iris_table.select_iris(where=where)]
         return flask.jsonify(data)
     except sqlite3.Error as database_error:
-        log_string = log.SqlConnectError(database_error, database_path=iris_sql_path)
-        logger.error(log_string)
-        return flask.make_response(log_string.short, 500)
+        log_entry = log.SqlConnectError(database_error, database_path=iris_sql_path)
+        log_entry.record("ERROR")
+        return flask.make_response(log_entry.short, 500)
 
 
 def parse_post_data(request: flask.request) -> list[iris.Iris]:
@@ -129,9 +130,9 @@ def post_iris(iris_data: list[iris.Iris] = None, unique: bool = False):
     try:
         sql_connection = sql_operations.get_connection(iris_sql_path)
     except sqlite3.Error as database_error:
-        log_string = log.SqlConnectError(database_error, database_path=iris_sql_path)
-        logger.error(log_string)
-        return flask.make_response(log_string.short, 500)
+        log_entry = log.SqlConnectError(database_error, database_path=iris_sql_path)
+        log_entry.record("ERROR")
+        return flask.make_response(log_entry.short, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     n_rows_inserted = sql_iris_table.insert_iris(data=iris_data, unique=unique)
     return f"Inserted {n_rows_inserted} rows."
@@ -155,17 +156,17 @@ def delete_iris():
     try:
         sql_connection = sql_operations.get_connection(iris_sql_path)
     except sqlite3.Error as database_error:
-        log_string = log.SqlConnectError(database_error, database_path=iris_sql_path)
-        logger.error(log_string)
-        return flask.make_response(log_string.short, 500)
+        log_entry = log.SqlConnectError(database_error, database_path=iris_sql_path)
+        log_entry.record("ERROR")
+        return flask.make_response(log_entry.short, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     try:
         n_deleted_rows = sql_iris_table.delete(where=where)
         return f"Deleted {n_deleted_rows} rows"
     except ValueError as value_error:
-        log_string = log.SqlDeleteError(value_error)
-        logger.error(log_string)
-        return flask.make_response(log_string.short, 400)
+        log_entry = log.SqlDeleteError(value_error)
+        log_entry.record("ERROR")
+        return flask.make_response(log_entry.short, 400)
 
 
 @app.route('/api/v1/iris/sync', methods=['Get'])
@@ -185,9 +186,9 @@ def sync_iris():
         result_string = post_iris(iris_data, unique=True)
         return result_string
     except (MissingSchema, ConnectionError) as bad_url_error:
-        log_string = log.UrlError(bad_url_error, iris_data_url)
-        logger.error(log_string)
-        return flask.make_response(log_string.short, 500)
+        log_entry = log.UrlError(bad_url_error, iris_data_url)
+        log_entry.record("ERROR")
+        return flask.make_response(log_entry.short, 500)
 
 
 @app.route('/api/v1/iris/summary', methods=['Get'])
@@ -197,9 +198,9 @@ def summarize_iris():
     try:
         sql_connection = sql_operations.get_connection(iris_sql_path)
     except sqlite3.Error as database_error:
-        log_string = log.SqlConnectError(database_error, database_path=iris_sql_path)
-        logger.error(log_string)
-        return flask.make_response(log_string.short, 500)
+        log_entry = log.SqlConnectError(database_error, database_path=iris_sql_path)
+        log_entry.record("ERROR")
+        return flask.make_response(log_entry.short, 500)
     sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
     json_summary = flask.jsonify(sql_iris_table.summary())
     return json_summary
@@ -210,8 +211,13 @@ def summarize_iris():
 #######
 
 if __name__ == '__main__':
+    api_host = os.getenv("API_HOST", "0.0.0.0")
+    api_port = os.getenv("API_PORT", 7000)
+    flask_debug_mode = bool(int(os.environ.get("FLASK_DEBUG_MODE", 0)))
+    app.config["DEBUG"] = flask_debug_mode
+
     app.run(
-        host="0.0.0.0",
-        port=os.getenv("API_PORT", 7000),
+        host=api_host,
+        port=api_port,
         use_reloader=False        # Necessary to function properly on Ubuntu
     )

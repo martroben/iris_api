@@ -4,6 +4,8 @@ import csv
 import json
 import logging
 import os
+# local
+import log
 
 
 ###########
@@ -25,11 +27,12 @@ class Iris:
         for attribute, attribute_type in allowed_attributes.items():
             self.__setattr__(attribute, kwargs.pop(attribute, attribute_type()))
         if len(kwargs):
-            warning_string = f"Can't assign forbidden attributes to class {self.__class__.__name__}. "\
-                             f"Problematic attributes: {', '.join(list(kwargs.keys()))}. "\
-                             f"Only the following attributes are allowed: "\
-                             f"{', '.join(list(allowed_attributes.keys()))}."
-            logging.getLogger(os.getenv("LOG_NAME")).warning(warning_string)
+            log_entry = log.ForbiddenAttributes(
+                exception=Warning(),
+                class_name=self.__class__.__name__,
+                received_attributes=list(kwargs.keys()),
+                allowed_attributes=allowed_attributes)
+            log_entry.record("WARNING")
 
     def __setattr__(self, key, value):
         """Only allow attributes defined in class variables."""
@@ -42,11 +45,12 @@ class Iris:
         else:
             problem_keys += [key]
         if len(problem_keys):
-            warning_string = f"Can't assign forbidden attributes to class {self.__class__.__name__}. "\
-                             f"Problematic attributes: {', '.join(problem_keys)}. "\
-                             f"Only the following attributes are allowed: "\
-                             f"{', '.join(list(allowed_attributes.keys()))}."
-            logging.getLogger(os.getenv("LOG_NAME")).warning(warning_string)
+            log_entry = log.ForbiddenAttributes(
+                exception=Warning(),
+                class_name=self.__class__.__name__,
+                received_attributes=problem_keys,
+                allowed_attributes=allowed_attributes)
+            log_entry.record("WARNING")
 
     def __hash__(self):
         """Hash function to compare and get unique instances by converting to set"""
