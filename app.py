@@ -25,14 +25,16 @@ os.environ["FLASK_DEBUG_MODE"] = "0"
 # Set logging #
 ###############
 
-log_name = os.getenv("LOG_NAME", "root")
+log_name = os.getenv("LOG_NAME", "root")            # Use only names that can also be folder names.
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+# Unique sequence to indicate where to cut syslog entries
+log_indicator = os.environ.get("LOG_INDICATOR", "rabbitofcaerbannog")
 
 logger = logging.getLogger(log_name)
 logger.setLevel(log_level)
 handler = logging.StreamHandler()                   # Direct logs to stdout
 formatter = logging.Formatter(
-    fmt=f"{{asctime}} | {{funcName}} | {{levelname}}: {{message}}",
+    fmt=f"{log_indicator}{{asctime}} | {{name}} | {{funcName}} | {{levelname}}: {{message}}",
     datefmt="%m/%d/%Y %H:%M:%S",
     style="{")
 handler.setFormatter(formatter)
