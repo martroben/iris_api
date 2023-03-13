@@ -63,8 +63,16 @@ class UrlError(LogString):
 
     def __post_init__(self):
         self.exception_type = self.exception.__class__.__name__
-        self.short = f"While downloading Iris data, {self.exception_type} occurred."
+        self.short = f"While connecting to Iris data url, {self.exception_type} occurred."
         self.full = f"{self.short} Url: {self.url}. Error: {self.exception}."
+
+
+@dataclass
+class DownloadError(LogString):
+    def __post_init__(self):
+        self.exception_type = self.exception.__class__.__name__
+        self.short = f"While downloading Iris data, {self.exception_type} occurred."
+        self.full = f"{self.short} Error: {self.exception}."
 
 
 @dataclass(kw_only=True)
