@@ -273,23 +273,29 @@ def get_table_summary(rows: list) -> dict[dict]:
     return summary
 
 
-def get_sqlite_data_type(type_name: str) -> str:
+def get_sql_type(python_type: str) -> str:
+    """Get SQLite data type name that corresponds to input python data type name."""
+    sql_type_reference = {
+        "int": "INTEGER",
+        "float": "REAL",
+        "str": "TEXT",
+        "NoneType": "NULL"}
+    return sql_type_reference.get(python_type, "BLOB")
+
+
+def get_python_type(sql_type: str, blob_type: str = str) -> type:
     """
-    Get SQLite data type by python type name
-    :param type_name: The type object of a Class (from class __annotations__)
-    :return: SQLite data type name.
+    Get python data type from SQLite type
+    :param sql_type: Name of SQLite type to convert
+    :param blob_type: Python type for SQLite BLOB type
+    :return: Python type object corresponding to input SQLite type
     """
-    type_name = type_name
-    if type_name == "int":
-        return "INTEGER"
-    elif type_name == "float":
-        return "REAL"
-    elif type_name == "str":
-        return "TEXT"
-    elif type_name == "NoneType":
-        return "NULL"
-    else:
-        return "BLOB"
+    python_type_reference = {
+        "INTEGER": int,
+        "REAL": float,
+        "TEXT": str,
+        "NULL": type(None)}
+    return python_type_reference.get(sql_type.upper(), blob_type)
 
 
 def get_connection(path: str) -> sqlite3.Connection:
@@ -297,6 +303,7 @@ def get_connection(path: str) -> sqlite3.Connection:
     Get SQLite connection to a given database path.
     If database doesn't exist, creates a new database and path directories to it (unless path is :memory:).
     :param path: Path to SQLite database
+    :return: sqlite3 Connection object to input path
     """
     if path != ":memory:":
         if not os.path.exists(os.path.dirname(path)):
@@ -305,19 +312,24 @@ def get_connection(path: str) -> sqlite3.Connection:
     return connection
 
 
-###########
-# Classes #
-###########
+############################
+# SQLite interface classes #
+############################
 
 class SqlTableInterface:
     """
     Interface class for SQLite operations on a single table.
+    Connects to an existing table or creates it if it doesn't exist.
+
     Instance attributes:
+    name: Table name in SQLite
+    columns: Dict with columns to initiate in the table. {column1 name: column1 python type, ...}
+    connection: sqlite3 Connection object to the database
     """
 
     def __init__(self, name: str, columns: dict, connection: sqlite3.Connection) -> None:
         self.name = name
-        self.columns = {column_name: get_sqlite_data_type(column_type) for column_name, column_type in columns.items()}
+        self.columns = {column_name: get_sql_type(column_type) for column_name, column_type in columns.items()}
         self.connection = connection
 
         create_table(
@@ -326,6 +338,7 @@ class SqlTableInterface:
             connection=self.connection)
 
     def insert(self, **kwargs) -> int:
+        """Insert a row to the table. Returns the number of rows inserted (0 or 1)"""
         n_rows_inserted = insert_row(
             table=self.name,
             connection=self.connection,
@@ -333,13 +346,18 @@ class SqlTableInterface:
         return n_rows_inserted
 
     def select(self, where: (str | list[str]) = None) -> list[dict]:
-        # Parse where inputs
-        if where:
-            where = [where] if not isinstance(where, list) else where  # Make sure where variable is a list
+        """
+        Get data from the table.
+        Data is filtered if "where"-statements are given. Otherwise, all data from the table is returned.
+        :param where: "where"-statements. A single string or a list of strings. E.g. "WHERE column1 != 'red'"
+        :return: Selected data
+        """
+        if where:               # Parse where inputs
+            where = [where] if not isinstance(where, list) else where          # Make sure where variable is a list
             where_parsed = [parse_where_parameter(parameter) for parameter in where]
             where_statement, where_values = compile_where_statement(where_parsed)
             where = (where_statement, where_values)
-
+        # Read
         result = read_table(
             table=self.name,
             connection=self.connection,
@@ -347,24 +365,35 @@ class SqlTableInterface:
         return result
 
     def delete(self, where: (str | list[str]) = 0):
-        # Parse where inputs
-        if where:
-            where = [where] if not isinstance(where, list) else where  # Make sure where variable is a list
+        """
+        Delete data from the table.
+        Selected rows are deleted if "where"-statements are given. No action if no "where"-statement is given.
+        :param where: "where"-statements. A single string or a list of strings. E.g. "WHERE column1 != 'red'"
+        :return: Number of rows deleted
+        """
+        if where:               # Parse where inputs
+            where = [where] if not isinstance(where, list) else where           # Make sure where variable is a list
             where_parsed = [parse_where_parameter(parameter) for parameter in where]
             where_statement, where_values = compile_where_statement(where_parsed)
             where = (where_statement, where_values)
 
-        result = delete_rows(
+        n_deleted_rows = delete_rows(
             table=self.name,
             connection=self.connection,
             where=where)
-        return result
+        return n_deleted_rows
 
 
 class SqlIrisInterface(SqlTableInterface):
-    name = "Iris"
+    """
+    Interface class for SQLite operations on a table for data from Iris class.
+    Connects to an existing table or creates it if it doesn't exist.
+    """
     type_class = Iris
-    columns_python_types = {key: column_type.__name__ for key, column_type in type_class.__annotations__.items()}
+    name = type_class.__name__
+    # Type names for class columns
+    columns_python_types = {column_name: column_type.__name__ for
+                            column_name, column_type in type_class.__annotations__.items()}
 
     def __init__(self, connection: sqlite3.Connection) -> None:
         SqlTableInterface.__init__(
@@ -376,21 +405,23 @@ class SqlIrisInterface(SqlTableInterface):
     def select_iris(self, where: (str | list[str]) = None) -> list[Iris]:
         """
         Get sql data with items formatted to the Iris class.
-        :param where:
-        :return:
+        Data is filtered if "where"-statements are given. Otherwise, all data from the table is returned.
+        :param where: "where"-statements. A single string or a list of strings. E.g. "WHERE species != 'virginica'"
+        :return: A list of Iris objects corresponding to returned rows
         """
         data_raw = self.select(where=where)
-        # Typecast data to class Iris
         data_iris = list()
-        for row in data_raw:
+        for row in data_raw:        # Typecast data to Iris class
             data_iris += [self.type_class(**row)]
         return data_iris
 
     def insert_iris(self, data: list[Iris], unique: bool = False):
         """
-        Inserts Iris objects to sql only if it is not yet present in the table.
+        Inserts Iris objects to SQLite.
         Uses list input to avoid redundant comparisons for every insertion.
-        Returns total number of rows inserted.
+        :param data: List of Iris object corresponding to rows to insert
+        :param unique: Only non-existing rows are inserted if True. Data is also deduplicated before inserting if True.
+        :return: Total number of rows inserted.
         """
         n_rows_inserted = 0
         if unique:
@@ -405,11 +436,10 @@ class SqlIrisInterface(SqlTableInterface):
         return n_rows_inserted
 
     def summary(self) -> dict[dict]:
-        # Return a nested dict with summary of data in the table.
+        """Return a nested dict with summary info for each column in the SQLite table."""
         data = self.select_iris()
-        if not data:                    # Handle cases where table has no content
-            sql_columns = get_columns(table=self.name, connection=self.connection).keys()
-            # Convert to object to add Python type info (could make a reverse type converter to get actual types...)
-            data = [self.type_class(**{column: str() for column in sql_columns})]
+        if not data:          # Handle cases where table has no content - create an empty Iris object
+            sql_columns = get_columns(table=self.name, connection=self.connection)
+            data = [self.type_class(**{column: get_python_type(sql_type)() for column, sql_type in sql_columns.items()})]
         summary = get_table_summary(data)
         return summary
