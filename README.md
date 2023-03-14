@@ -1,8 +1,54 @@
-# iris api
+# Iris api
 Stacc exercise
 
 
-# Running on Docker
+# Description
+REST API to demonstrate downloading, storing and mutating the iris dataset.
+
+
+## Endpoints
+root path: `./api/v1`
+
+### GET:
+- `/iris` - query stored data. Use "where" parameter for filtering.
+- `/iris/all` - get all stored data.
+- `/iris/sync`    - insert iris csv from url specified in "url" parameter. Inserts only non-existing rows.
+- `/iris/summary` - get per-column summary of stored data.
+
+### POST:
+- `/iris` - add data. Use Content-Type "text/csv" for csv, otherwise "application/json".
+- `/iris/unique`- add data. Adds only rows that don't already exist in storage.
+
+### DELETE:
+- `/iris`   - delete stored data. Use "where" parameter for specifying rows, otherwise no action.
+- `/iris/all`- delete all stored data.
+
+### Using the "where" parameter:
+- Available operators: `=`, `!=`, `<`, `>`,`IN` (i.e. `%20IN%20`).
+- Multiple "where" parameters are always logically joined by AND in database queries.
+- Column names can't contain operators (except "in" without surrounding whitespaces).
+- Values can't contain commas.
+
+##### Examples:
+- `GET` `./api/v1/iris?where=petal_length=5.5`
+- `GET` `./api/v1/iris?where=petal_width<1`
+- `DELETE` `./api/v1/iris?where=species%20IN%20(virginica,setosa)`
+- `GET` `./api/v1/iris?where=sepal_width>3.3&where=species%20IN%20(virginica,setosa)`
+
+
+## Repo files
+- [.env_showcase](.env_showcase) - Sample .env file to be used when running the [showcase](showcase.md) examples on Docker.
+- [Dockerfile](Dockerfile) - Dockerfile for building the API image.
+- [app.py](app.py) - Flask app and endpoints. Main.
+- [conftest.py](conftest.py) - Emtpy file. Necessary for running `pytest`.
+- [entrypoint.sh](entrypoint.sh) - Entrypoint for API container.
+- [install_packages.sh](install_packages.sh) - Used while building API Docker image. Upgrades container os and installs packages.
+- [iris.py](iris.py) - Home of Iris data type class.
+- [log.py](log.py) - Logging-related functions and classes.
+- [requirements.txt](requirements.txt) - Python packages. Used while building the API Docker image.
+- [sql_operations.py](sql_operations.py) - Functions and classes related to SQLite operations.
+
+# Instructions to run on Docker
 Default setup:
 ```
                                 iris csv from url                                               
@@ -62,8 +108,8 @@ sudo docker volume create --label iris_data
 ```
 
 ## Test/run
-You can test the api either by sending curl requests from the host or from another container.
-### Exposing api on localhost
+You can test the api either by sending curl requests from the host or from another container within the same Docker network.
+### Exposing api on the host
 [Showcase](showcase.md) was tested on Ubuntu 22.04, bash 5.1.16
 ```Shell
 sudo docker run \
@@ -128,5 +174,8 @@ Use matching `LOG_INDICATOR` variable in both iris_api and log_receiver .env fil
 
 
 ## Showcase
-See [showcase](showcase.md) for curl requests that demonstrate the capabilities.
+See [showcase](showcase.md) for curl requests that demonstrate the app capabilities.
 
+
+## Ideas
+Check [Issues](https://github.com/martroben/iris_api/issues) for future ideas / current limitations.

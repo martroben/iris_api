@@ -308,3 +308,13 @@ Result:
   }
 }
 ```
+
+### 14. Test a request that raises an exception
+```Shell
+curl "http://188.0.0.2:7000/api/v1/iris/sync?url=http://www.mr-wensleydale.com"
+```
+
+Result:
+```Shell
+While connecting to Iris data url, ConnectionError occurred.
+```
