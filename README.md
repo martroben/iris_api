@@ -180,3 +180,9 @@ See [showcase](showcase.md) for curl requests that demonstrate the app capabilit
 
 ## Ideas
 Check [Issues](https://github.com/martroben/iris_api/issues) for future ideas / current limitations.
+
+## Tests
+Currently very basic and partial.
+```Shell
+pytest ./tests
+```
