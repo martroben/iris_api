@@ -12,12 +12,12 @@ import iris
 import log
 import sql_operations
 
-# Uncomment for testing on host (not Docker)
+# Uncomment for running on host (not Docker)
 # os.environ["SQL_PATH"] = "./iris.sql"
 # os.environ["DEFAULT_IRIS_DATA_URL"] = "https://gist.githubusercontent.com/curran/" \
 #                                       "a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
 # os.environ["LOG_LEVEL"] = "INFO"
-# os.environ["LOG_NAME"] = "iris"
+# os.environ["LOGGER_NAME"] = "iris"
 # os.environ["API_PORT"] = "7000"
 # os.environ["API_HOST"] = "0.0.0.0"
 # os.environ["FLASK_DEBUG_MODE"] = "0"
@@ -28,10 +28,10 @@ import sql_operations
 # Set logging #
 ###############
 
-log_name = os.getenv("LOG_NAME", "root")  # Use only names that can also be folder names.
+logger_name = os.getenv("LOGGER_NAME", "root")                         # Use only names that can also be folder names.
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-log_indicator = os.environ.get("LOG_INDICATOR", str())  # Unique sequence to indicate where to cut syslog entries.
-logger = log.get_logger(log_name, log_level, log_indicator)
+log_indicator = os.environ.get("LOG_INDICATOR", str())    # Unique sequence to indicate where to split syslog entries.
+logger = log.setup_logger(logger_name, log_level, log_indicator)
 
 
 ###############
@@ -41,13 +41,13 @@ logger = log.get_logger(log_name, log_level, log_indicator)
 app = flask.Flask(__name__)
 
 # Add handlers to Flask loggers
-# Flask uses a logger by the app name and a inherited 'werkzeug' logger
-flask_logs = [app.name, "werkzeug"]
-for log_name in flask_logs:
-    app_logger = logging.getLogger(log_name)
-    app_logger.handlers.clear()
-    app_logger.addHandler(logger.handlers[0])
-    app_logger.setLevel(log_level)
+# Flask uses a logger by the app name and an inherited 'werkzeug' logger
+flask_loggers = [app.name, "werkzeug"]
+for flask_logger_name in flask_loggers:
+    flask_logger = logging.getLogger(flask_logger_name)
+    flask_logger.handlers.clear()
+    flask_logger.addHandler(logger.handlers[0])
+    flask_logger.setLevel(log_level)
 
 app.config["DEBUG"] = bool(int(os.environ.get("FLASK_DEBUG_MODE", 0)))
 
@@ -56,7 +56,7 @@ app.config["DEBUG"] = bool(int(os.environ.get("FLASK_DEBUG_MODE", 0)))
 # Flask endpoints #
 ###################
 
-@app.route('/', methods=['GET'])
+@app.route("/", methods=["GET"])
 def home():
     """Root endpoint with api info."""
     info = """\
@@ -92,11 +92,11 @@ def home():
     return info
 
 
-@app.route('/api/v1/iris', methods=['GET'])
-@app.route('/api/v1/iris/all', methods=['GET'])
+@app.route("/api/v1/iris", methods=["GET"])
+@app.route("/api/v1/iris/all", methods=["GET"])
 def get_iris():
     """
-    Query stored data. Use 'where' parameter for filtering.
+    Query stored data. Use "where" parameter for filtering.
     If no "where" parameter is supplied, returns all data.
     If accessed via /iris/all endpoint, returns all data.
     """
@@ -104,7 +104,7 @@ def get_iris():
     get_all = "iris/all" in str(flask.request.url_rule).lower()       # Determine if the /all endpoint is used
     where = None if get_all else arguments.get("where", None)
 
-    iris_sql_path = os.getenv("SQL_PATH", "./iris_sql")
+    iris_sql_path = os.getenv("SQL_PATH", "/iris_data/iris_sql")
     try:
         sql_connection = sql_operations.get_connection(iris_sql_path)
         sql_iris_table = sql_operations.SqlIrisInterface(connection=sql_connection)
@@ -114,13 +114,17 @@ def get_iris():
         log_entry = log.SqlConnectError(database_error, database_path=iris_sql_path)
         log_entry.record("ERROR")
         return flask.make_response(log_entry.short, 500)
+    except ValueError as bad_syntax_error:
+        log_entry = log.SqlGetError(bad_syntax_error)
+        log_entry.record("ERROR")
+        return flask.make_response(log_entry.short, 400)
 
 
 def parse_post_data(request: flask.request) -> list[iris.Iris]:
     """
-    Parses the payload from a post request, determines whether it's csv or json and
-    typecasts it to Iris data type.
-    :param request: flask request object
+    Parses the payload from a post request, determines whether it's csv or json.
+    Typecasts it to Iris data type
+    :param request: flask request object from an incoming post request
     :return: list of parsed Iris objects
     """
     if request.content_type.lower() == "text/csv":
@@ -128,16 +132,16 @@ def parse_post_data(request: flask.request) -> list[iris.Iris]:
         iris_data = iris.from_csv(payload)
     else:
         payload = request.get_json()
-        payload = [payload] if not isinstance(payload, list) else payload  # Accept both list and single rows
+        payload = [payload] if not isinstance(payload, list) else payload   # Accepts both list and single rows
         iris_data = iris.from_json(payload)
     return iris_data
 
 
-@app.route('/api/v1/iris', methods=['Post'])
-@app.route('/api/v1/iris/unique', methods=['Post'])
+@app.route("/api/v1/iris", methods=["POST"])
+@app.route("/api/v1/iris/unique", methods=["POST"])
 def post_iris(iris_data: list[iris.Iris] = None, unique: bool = False):
     """
-    Inserts csv or json data to storage, depending on Content-Type header
+    Inserts csv or json data (depending on Content-Type header) to storage
     :return: String with number of inserted rows.
     """
     if not iris_data:                                                    # Case when endpoint request is used
@@ -155,18 +159,18 @@ def post_iris(iris_data: list[iris.Iris] = None, unique: bool = False):
     return f"Inserted {n_rows_inserted} rows."
 
 
-@app.route('/api/v1/iris', methods=['Delete'])
-@app.route('/api/v1/iris/all', methods=['Delete'])
+@app.route("/api/v1/iris", methods=["Delete"])
+@app.route("/api/v1/iris/all", methods=["Delete"])
 def delete_iris():
     """
-    Delete rows from storage. Rows can be specified by 'where' parameters.
-    No action, if no where parameters are supplied.
+    Delete rows from storage. Rows can be specified by "where" parameters.
+    No action, if no "where" parameters are supplied.
     If /all endpoint is used, deletes all rows in table.
     :return: String with information about the number of deleted rows.
     """
-    delete_all = "iris/all" in str(flask.request.url_rule).lower()  # Determine if the /all endpoint is used
+    delete_all = "iris/all" in str(flask.request.url_rule).lower()        # Determine if the /all endpoint is used
     arguments = flask.request.args.to_dict(flat=False)
-    # Value that is always true if delete_all and always false if no where argument is supplied
+    # Always true if delete_all, always false if no "where" argument
     where = "1=1" if delete_all else arguments.get("where", "1=0")
 
     iris_sql_path = os.getenv("SQL_PATH", "./iris.sql")
@@ -180,15 +184,15 @@ def delete_iris():
     try:
         n_deleted_rows = sql_iris_table.delete(where=where)
         return f"Deleted {n_deleted_rows} rows"
-    except ValueError as value_error:
-        log_entry = log.SqlDeleteError(value_error)
+    except ValueError as bad_syntax_error:
+        log_entry = log.SqlDeleteError(bad_syntax_error)
         log_entry.record("ERROR")
         return flask.make_response(log_entry.short, 400)
 
 
 def download_url_data(url: str) -> str:
     """
-    Helper function for downloading string data.
+    Helper function for downloading text data.
     :param url: Data url
     :return: Data string
     """
@@ -198,16 +202,16 @@ def download_url_data(url: str) -> str:
     return response.text
 
 
-@app.route('/api/v1/iris/sync', methods=['Get'])
+@app.route("/api/v1/iris/sync", methods=["GET"])
 def sync_iris():
     """
-    Sync iris data from 'url' argument. If no 'url' argument, url is pulled from env variable DEFAULT_IRIS_DATA_URL.
+    Sync iris data from url specified in "url" parameter of the GET request.
+    If no "url" parameter is included, url from env variable DEFAULT_IRIS_DATA_URL is used.
     Inserts only non-existing (unique) data.
     :return: String with information about the number of inserted rows.
     """
     # Parse url if given
     iris_data_url = flask.request.args.get("url", os.getenv("DEFAULT_IRIS_DATA_URL"))
-    # Download data
     try:
         iris_data_csv = download_url_data(iris_data_url)
         iris_data = iris.from_csv(iris_data_csv)
@@ -224,7 +228,7 @@ def sync_iris():
         return flask.make_response(log_entry.short, 500)
 
 
-@app.route('/api/v1/iris/summary', methods=['Get'])
+@app.route("/api/v1/iris/summary", methods=["GET"])
 def summarize_iris():
     """Get a json summary of the columns and values in stored data."""
     iris_sql_path = os.getenv("SQL_PATH", "./iris.sql")
