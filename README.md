@@ -74,6 +74,7 @@ Default setup:
     +--------------------------------------------------------------------------------------+    
 ```
 ## Setup
+Setup and [showcase](showcase.md) were tested on Ubuntu 22.04 | Docker 20.10.17 | bash 5.1.16
 ### 1. Clone project
 ```Shell
 git clone https://github.com/martroben/iris_api
@@ -110,7 +111,7 @@ sudo docker volume create --label iris_data
 ## Test/run
 You can test the api either by sending curl requests from the host or from another container within the same Docker network.
 ### Exposing api on the host
-[Showcase](showcase.md) was tested on Ubuntu 22.04, bash 5.1.16
+
 ```Shell
 sudo docker run \
   --rm \
@@ -167,8 +168,8 @@ sudo docker run \
 apk add curl coreutils
 ```
 
-### Directing logs to a separate log receiver container (optional)
-Deploy [log receiver](https://github.com/martroben/log_receiver) with appropriate network/container names.
+##### Directing logs to a separate log receiver container (optional)
+Deploy [log receiver](https://github.com/martroben/log_receiver) with appropriate Docker network names.
 
 Use matching `LOG_INDICATOR` variable in both iris_api and log_receiver .env files (current defaults already match).
 
