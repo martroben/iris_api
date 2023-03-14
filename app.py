@@ -61,7 +61,7 @@ def home():
     """Root endpoint with api info."""
     info = """\
     <h1>Iris dataset api</h1>
-    <p>path: ./v1/api</p>
+    <p>path: ./api/v1</p>
     </br>
     <h2>Available endpoints:</h2>
     <h3>GET:</h3>
