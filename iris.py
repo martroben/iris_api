@@ -2,8 +2,6 @@
 # standard
 import csv
 import json
-import logging
-import os
 # local
 import log
 
@@ -13,6 +11,8 @@ import log
 ###########
 
 class Iris:
+    """Data class for iris objects - i.e. for rows from iris data."""
+
     # Allowed attributes for class
     # accessed by self.__class__.annotations__ in code
     sepal_length: float
@@ -22,7 +22,7 @@ class Iris:
     species: str
 
     def __init__(self, **kwargs):
-        """Extract class attributes from input. If attribute not found, assign empty value with correct type."""
+        """Extract class attributes from input. If attribute is not found, assign empty value with correct type."""
         allowed_attributes = self.__class__.__annotations__
         for attribute, attribute_type in allowed_attributes.items():
             self.__setattr__(attribute, kwargs.pop(attribute, attribute_type()))
@@ -39,7 +39,7 @@ class Iris:
         allowed_attributes = self.__class__.__annotations__
         problem_keys = list()
         if key in allowed_attributes:
-            # Typecast the assigned value according to the type of attribute (float, int etc.)
+            # Typecast the assigned value according to the type of the class attribute (float, int etc.)
             typed_value = allowed_attributes[key](value) if value else allowed_attributes[key]()
             super().__setattr__(key, typed_value)
         else:
@@ -53,7 +53,7 @@ class Iris:
             log_entry.record("WARNING")
 
     def __hash__(self):
-        """Hash function to compare and get unique instances by converting to set"""
+        """Hash function to compare and get unique instances of Iris by using a set"""
         return hash(json.dumps(self.as_dict(), sort_keys=True))
 
     def __eq__(self, other):
@@ -63,8 +63,8 @@ class Iris:
         values = [f"{attribute}: {self.__getattribute__(attribute)}" for attribute in self.__class__.__annotations__]
         return ", ".join(values)
 
-    def as_dict(self):
-        """Return all class attributes and values as dict."""
+    def as_dict(self) -> dict:
+        """Return all class attributes (i.e. columns) and their values as a dict."""
         return {attribute: self.__getattribute__(attribute)
                 for attribute in self.__class__.__annotations__}
 
@@ -74,6 +74,11 @@ class Iris:
 #############
 
 def from_csv(data: str) -> list[Iris]:
+    """
+    Parse Iris objects from csv data
+    :param data: Iris data in csv format
+    :return: List of Iris objects, representing the rows of the data.
+    """
     data_raw = csv.DictReader(data.splitlines())
     iris_data = list()
     for row in data_raw:
@@ -82,4 +87,9 @@ def from_csv(data: str) -> list[Iris]:
 
 
 def from_json(data: list) -> list[Iris]:
+    """
+    Parse Iris objects from json data
+    :param data: Iris data in json (i.e. dict) format
+    :return: List of Iris objects, representing the rows of the data.
+    """
     return [Iris(**row) for row in data]
